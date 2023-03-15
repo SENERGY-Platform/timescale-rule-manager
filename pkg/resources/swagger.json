@@ -1,0 +1,246 @@
+{
+  "basePath": "/",
+  "consumes": [
+    "application/json"
+  ],
+  "definitions": {
+    "Rule": {
+      "properties": {
+        "id": {
+          "description": "Rul eID",
+          "type": "string"
+        },
+        "description": {
+          "description": "Human readable description of the rule",
+          "type": "string"
+        },
+        "group": {
+          "description": "Group of the rule.\n Rules will be selected by the following logic: Table name matches table_reg_ex  and (users or roles match). Rules will then be grouped by their group field and the rule with the highest priority of each group is applied.",
+          "type": "string"
+        },
+        "priority": {
+          "description": "Priority of the rule.\n Rules will be selected by the following logic: Table name matches table_reg_ex  and (users or roles match). Rules will then be grouped by their group field and the rule with the highest priority of each group is applied.",
+          "type": "string"
+        },
+        "table_reg_ex": {
+          "description": "Regular Expression of the rule.\n Rules will be selected by the following logic: Table name matches table_reg_ex and (users or roles match). Rules will then be grouped by their group field and the rule with the highest priority of each group is applied.",
+          "type": "string"
+        },
+        "users": {
+          "description": "Users of the rule.\n Rules will be selected by the following logic: Table name matches table_reg_ex and (users or roles match). Rules will then be grouped by their group field and the rule with the highest priority of each group is applied.",
+          "type": "array",
+          "items": {
+            "description": "User Ids",
+            "type": "string"
+          }
+        },
+        "roles": {
+          "description": "Roles of the rule.\n Rules will be selected by the following logic: Table name matches table_reg_ex and (users or roles match). Rules will then be grouped by their group field and the rule with the highest priority of each group is applied.",
+          "type": "array",
+          "items": {
+            "description": "User Ids",
+            "type": "string"
+          }
+        },
+        "command_template": {
+          "description": "Template for the command to be applied when the rule matches. The template may use placeholders in the golang template format. The template is apllied to the following struct:\ntype TableInfo struct {\nTable          string\n  UserIds        []string\n  Roles          []string\n  ShortUserId    string\n  DeviceId       string\n  ShortDeviceId  string\n  ServiceId      string\n  ShortServiceId string\n  ExportId       string\n  ShortExportId  string\n  Columns        []string\n}\nAll commands in the template must be able to run inside transactions.",
+          "type": "string"
+        },
+        "delete_template": {
+          "description": "Template for the command to be applied when the rule is deleted. The template may use placeholders in the golang template format. The template is apllied to the following struct:\ntype TableInfo struct {\nTable          string\n  UserIds        []string\n  Roles          []string\n  ShortUserId    string\n  DeviceId       string\n  ShortDeviceId  string\n  ServiceId      string\n  ShortServiceId string\n  ExportId       string\n  ShortExportId  string\n  Columns        []string\n}\nAll commands in the template must be able to run inside transactions.",
+          "type": "string"
+        },
+        "errors": {
+          "description": "When rules are applied asychronously and fail, errors will be logged in this field",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "type": "object"
+    }
+  },
+  "info": {
+    "title": "Timescale Rule Manager",
+    "version": "0.1"
+  },
+  "paths": {
+    "/doc": {
+      "get": {
+        "operationId": "get_docs",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "tags": [
+          "default"
+        ]
+      }
+    },
+    "/rules": {
+      "get": {
+        "operationId": "list_rules",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/Rule"
+              },
+              "type": "array"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_rule",
+        "parameters": [
+          {
+            "in": "body",
+            "required": true,
+            "name": "rule",
+            "schema": {
+              "$ref": "#/definitions/Rule"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/Rule"
+              },
+              "type": "array"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/rules/{id}": {
+      "get": {
+        "operationId": "get_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "schema": {
+              "$ref": "#/definitions/Rule"
+            }
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "update_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "required": true,
+            "name": "rule",
+            "schema": {
+              "$ref": "#/definitions/Rule"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    }
+  },
+  "produces": [
+    "application/json"
+  ],
+  "responses": {
+    "MaskError": {
+      "description": "When any error occurs on mask"
+    },
+    "ParseError": {
+      "description": "When a mask can't be parsed"
+    }
+  },
+  "swagger": "2.0",
+  "tags": [
+    {
+      "description": "Default namespace",
+      "name": "default"
+    }
+  ]
+}

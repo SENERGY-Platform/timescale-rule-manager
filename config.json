@@ -1,0 +1,22 @@
+{
+  "api_port": "8080",
+  "kafka_bootstrap": "kafka.kafka",
+  "kafka_topic_table_updates": "timescale-table-updates",
+  "kafka_topic_permission_updates": "permissions_done",
+  "kafka_group_id": "timescale-rule-manager",
+  "postgres_host": "timescale.timescale",
+  "postgres_port": 5432,
+  "postgres_user": "postgres",
+  "postgres_pw": "",
+  "postgres_db": "postgres",
+  "postgres_rule_schema": "rules",
+  "postgres_rule_table": "rules",
+  "permission_search_url": "http://query.permissions",
+  "keycloak_url": "http://api.keycloak:8080/auth",
+  "keycloak_client_id": "",
+  "keycloak_client_secret": "",
+  "device_id_prefix": "urn:infai:ses:device:",
+  "service_id_prefix": "urn:infai:ses:service:",
+  "apply_rules_at_startup": false,
+  "debug": false
+}

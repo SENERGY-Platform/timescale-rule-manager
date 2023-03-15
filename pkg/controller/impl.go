@@ -1,0 +1,398 @@
+/*
+ * Copyright 2023 InfAI (CC SES)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package controller
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"errors"
+	"github.com/SENERGY-Platform/models/go/models"
+	perm "github.com/SENERGY-Platform/permission-search/lib/client"
+	"github.com/hashicorp/go-uuid"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/database"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/security"
+	"golang.org/x/exp/slices"
+	"log"
+	"net/http"
+	"regexp"
+	"sync"
+	"text/template"
+)
+
+type impl struct {
+	db                          database.DB
+	permissionSearch            perm.Client
+	oidClient                   *security.Client
+	kafkaTopicTableUpdates      string
+	kafkaTopicPermissionUpdates string
+	deviceIdPrefix              string
+	serviceIdPrefix             string
+}
+
+func New(c config.Config, db database.DB, permissionSearch perm.Client, ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
+	oidClient, err := security.NewClient(c.KeycloakUrl, c.KeycloakClientId, c.KeycloakClientSecret)
+	if err != nil {
+		return nil, err
+	}
+	controller := &impl{db: db, permissionSearch: permissionSearch, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix}
+	err = controller.setupKafka(c, ctx, wg)
+	if err != nil {
+		return nil, err
+	}
+	return controller, err
+}
+
+func (this *impl) CreateRule(rule *model.Rule) (res *model.Rule, code int, err error) {
+	if len(rule.Id) != 0 {
+		return nil, http.StatusBadRequest, errors.New("may not specify Id yourself")
+	}
+	rule.Id, err = uuid.GenerateUUID()
+	if err != nil {
+		return nil, http.StatusBadRequest, err
+	}
+	tx, cancel, err := this.db.GetTx()
+	defer cancel()
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	err = this.db.InsertRule(rule, tx)
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	tables, err := this.db.FindMatchingTables([]string{rule.Id}, tx)
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	for _, table := range tables {
+		allRanOk, code, err := this.applyRulesForTable(table, false, []string{rule.Id}, tx)
+		if err != nil {
+			return nil, code, err
+		}
+		if !allRanOk {
+			return nil, http.StatusBadRequest, errors.New("rule template finished with errors")
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	return rule, http.StatusOK, nil
+}
+func (this *impl) UpdateRule(rule *model.Rule) (code int, err error) {
+	tx, cancel, err := this.db.GetTx()
+	defer cancel()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	rule.Errors = []string{} // empty now, will be filled when running template
+	err = this.db.UpdateRule(rule, tx)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return http.StatusNotFound, err
+		}
+		return http.StatusInternalServerError, err
+	}
+	tables, err := this.db.FindMatchingTables([]string{rule.Id}, tx)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	for _, table := range tables {
+		allRanOk, code, err := this.applyRulesForTable(table, false, []string{rule.Id}, tx)
+		if err != nil {
+			return code, err
+		}
+		respErr := errors.New("rule template finished with errors")
+		rule, err = this.db.GetRule(rule.Id, tx)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+		if rule.Errors != nil {
+			for _, errStr := range rule.Errors {
+				respErr = errors.Join(respErr, errors.New(errStr))
+			}
+		}
+		if !allRanOk {
+			return http.StatusBadRequest, respErr
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
+}
+func (this *impl) DeleteRule(id string) (code int, err error) {
+	tx, cancel, err := this.db.GetTx()
+	defer cancel()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	tables, err := this.db.FindMatchingTables([]string{id}, tx)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	for _, table := range tables {
+		allRanOk, code, err := this.applyRulesForTable(table, true, []string{id}, tx)
+		if err != nil {
+			return code, err
+		}
+		if !allRanOk {
+			return http.StatusBadRequest, errors.New("rule has delete template that finished with errors. " +
+				"Will not delete rule to avoid inconsistencies")
+		}
+	}
+	err = this.db.DeleteRule(id, tx)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return http.StatusNotFound, err
+		}
+		return http.StatusInternalServerError, err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return http.StatusOK, nil
+}
+func (this *impl) GetRule(id string) (rule *model.Rule, code int, err error) {
+	tx, cancel, err := this.db.GetTx()
+	defer cancel()
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	rule, err = this.db.GetRule(id, tx)
+	if err != nil {
+		if errors.Is(err, database.ErrNotFound) {
+			return nil, http.StatusNotFound, err
+		}
+		return nil, http.StatusInternalServerError, err
+	}
+	return rule, http.StatusOK, nil
+}
+func (this *impl) ListRules(limit, offset int) (rules []model.Rule, code int, err error) {
+	rules, err = this.db.ListRules(limit, offset)
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	return rules, http.StatusOK, nil
+}
+
+var exportTableMatch = regexp.MustCompile("userid:(.{22})_export:(.{22}).*")
+var deviceTableMatch = regexp.MustCompile("device:(.{22})_service:(.{22}).*")
+
+func (this *impl) ApplyAllRulesForTable(table string, useDeleteTemplateInstead bool) (code int, err error) {
+	tx, cancel, err := this.db.GetTx()
+	defer cancel()
+	_, code, err = this.applyRulesForTable(table, useDeleteTemplateInstead, nil, tx)
+	if err != nil {
+		return code, err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	return code, err
+}
+
+func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool, limitToRuleIds []string, tx *sql.Tx) (allRanOk bool, code int, err error) {
+	allRanOk = true
+	tableInfo := model.TableInfo{Table: table, Roles: []string{}}
+	matches := exportTableMatch.FindAllStringSubmatch(table, -1)
+	if matches != nil && len(matches[0]) == 3 { // is export table
+		tableInfo.ShortUserId = matches[0][1]
+		longUserId, err := models.LongId(tableInfo.ShortUserId)
+		if err != nil {
+			return false, http.StatusInternalServerError, err
+		}
+		tableInfo.UserIds = []string{longUserId}
+		tableInfo.ShortExportId = matches[0][2]
+		tableInfo.ExportId, err = models.LongId(tableInfo.ShortExportId)
+		if err != nil {
+			return false, http.StatusInternalServerError, err
+		}
+	} else {
+		matches = deviceTableMatch.FindAllStringSubmatch(table, -1)
+		if matches != nil && len(matches[0]) == 3 { // is device-service table
+			tableInfo.ShortDeviceId = matches[0][1]
+			longDeviceId, err := models.LongId(tableInfo.ShortDeviceId)
+			if err != nil {
+				return false, http.StatusInternalServerError, err
+			}
+			tableInfo.DeviceId = this.deviceIdPrefix + longDeviceId
+			tableInfo.ShortServiceId = matches[0][2]
+			longServiceId, err := models.LongId(tableInfo.ShortServiceId)
+			if err != nil {
+				return false, http.StatusInternalServerError, err
+			}
+			tableInfo.ServiceId = this.serviceIdPrefix + longServiceId
+			// get Device Owners
+			token, err := this.oidClient.GetToken()
+			if err != nil {
+				return false, http.StatusInternalServerError, err
+			}
+			rights, _, err := this.permissionSearch.GetRights(token.JwtToken(), "devices", tableInfo.DeviceId)
+			if err != nil {
+				return false, http.StatusInternalServerError, err
+			}
+			tableInfo.Roles = []string{}
+			for group, groupRights := range rights.GroupRights { // groups are roles...
+				if groupRights.Execute {
+					tableInfo.Roles = append(tableInfo.Roles, group)
+				}
+			}
+			for userId, userRights := range rights.UserRights {
+				if userRights.Execute {
+					tableInfo.UserIds = append(tableInfo.UserIds, userId)
+				}
+			}
+
+		} else {
+			return false, http.StatusBadRequest, errors.New("unknown table format")
+		}
+	}
+
+	for _, userId := range tableInfo.UserIds {
+		realmRoleMappings, err := this.oidClient.GetRealmRoleMappings(userId)
+		if err != nil {
+			return false, http.StatusInternalServerError, err
+		}
+		for _, realmRoleMapping := range realmRoleMappings {
+			if !slices.Contains(tableInfo.Roles, realmRoleMapping.Name) {
+				tableInfo.Roles = append(tableInfo.Roles, realmRoleMapping.Name)
+			}
+		}
+	}
+
+	rules, err := this.db.FindMatchingRulesWithOwnerInfo(table, tableInfo.UserIds, tableInfo.Roles, limitToRuleIds, tx)
+	if err != nil {
+		return false, http.StatusInternalServerError, err
+	}
+
+	if len(rules) > 0 {
+		tableInfo.Columns, err = this.db.GetColumns(table)
+		if err != nil {
+			return false, http.StatusInternalServerError, err
+		}
+	}
+
+	for _, rule := range rules {
+		t := rule.CommandTemplate
+		if useDeleteTemplateInstead {
+			t = rule.DeleteTemplate
+		}
+		savepoint := "rule"
+		_, err = tx.Exec("SAVEPOINT " + savepoint + ";")
+		if err != nil {
+			return false, http.StatusInternalServerError, err
+		}
+		errorhandling := func(ruleErr error) error {
+			allRanOk = false
+			_, err = tx.Exec("ROLLBACK TO SAVEPOINT " + savepoint + ";")
+			if err != nil {
+				return err
+			}
+			if rule.Errors == nil {
+				rule.Errors = []string{}
+			}
+			rule.Errors = append(rule.Errors, table+": "+ruleErr.Error())
+			err = this.db.UpdateRule(&rule, tx)
+			return err
+		}
+		tmpl, err := template.New("").Parse(t)
+		if err != nil {
+			err = errorhandling(err)
+			if err != nil {
+				return false, http.StatusInternalServerError, err
+			}
+			continue
+		}
+		query, err := execTempl(tmpl, tableInfo)
+		if err != nil {
+			err = errorhandling(err)
+			if err != nil {
+				return false, http.StatusInternalServerError, err
+			}
+			continue
+		}
+		_, err = this.db.Exec(query, tx)
+		if err != nil {
+			err = errorhandling(err)
+			if err != nil {
+				return false, http.StatusInternalServerError, err
+			}
+			continue
+		}
+	}
+
+	return allRanOk, http.StatusOK, nil
+}
+
+func (this *impl) ApplyAllRules() error {
+	limit := 1000
+	offset := 0
+	tx, cancel, err := this.db.GetTx()
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	for {
+		rules, _, err := this.ListRules(limit, offset)
+		if err != nil {
+			return err
+		}
+
+		ruleIds := make([]string, len(rules))
+		for i, rule := range rules {
+			ruleIds[i] = rule.Id
+		}
+		tables, err := this.db.FindMatchingTables(ruleIds, tx)
+		if err != nil {
+			return err
+		}
+
+		for _, table := range tables {
+			allOk, _, err := this.applyRulesForTable(table, false, ruleIds, tx)
+			if err != nil {
+				return err
+			}
+			if !allOk {
+				log.Println("WARN: Not all rules for table " + table + " could be applied without errors")
+			}
+		}
+
+		offset += len(rules)
+		if len(rules) < limit {
+			break
+		}
+	}
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func execTempl(t *template.Template, value any) (string, error) {
+	buf := &bytes.Buffer{}
+	err := t.Execute(buf, value)
+	return buf.String(), err
+}
