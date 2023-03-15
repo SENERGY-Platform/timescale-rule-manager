@@ -41,6 +41,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            smartenergyplatform/timescale-wrapper:dev
-            ghcr.io/senergy-platform/timescale-wrapper:dev
+            smartenergyplatform/timescale-rule-manager:dev
+            ghcr.io/senergy-platform/timescale-rule-manager:dev
 
