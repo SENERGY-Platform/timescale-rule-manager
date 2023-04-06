@@ -85,8 +85,18 @@ func (this *impl) CreateRule(rule *model.Rule) (res *model.Rule, code int, err e
 		if err != nil {
 			return nil, code, err
 		}
+		respErr := errors.New("rule template finished with errors")
+		rule, err = this.db.GetRule(rule.Id, tx)
+		if err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		if rule.Errors != nil {
+			for _, errStr := range rule.Errors {
+				respErr = errors.Join(respErr, errors.New(errStr))
+			}
+		}
 		if !allRanOk {
-			return nil, http.StatusBadRequest, errors.New("rule template finished with errors")
+			return nil, http.StatusBadRequest, respErr
 		}
 	}
 
