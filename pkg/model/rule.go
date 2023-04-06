@@ -19,7 +19,7 @@ package model
 type Rule struct {
 	Id              string   `sqltype:"text" sqlextra:"primary key" json:"id,omitempty"` // Set by API
 	Description     string   `sqltype:"text" json:"description,omitempty"`
-	Priority        int      `sqltype:"integer" json:"priority,omitempty"`
+	Priority        int      `sqltype:"integer" json:"priority"`
 	Group           string   `sqltype:"text" json:"group,omitempty"`
 	TableRegEx      string   `sqltype:"text" json:"table_reg_ex,omitempty"`
 	Users           []string `sqltype:"text[]" json:"users,omitempty"`
