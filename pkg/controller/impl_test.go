@@ -543,10 +543,11 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		KeycloakClientId:            "myapp",
 		KeycloakClientSecret:        "d0b8122f-8dfb-46b7-b68a-f5cc4e25d000",
 		ApplyRulesAtStartup:         false,
+		Timeout:                     "30s",
 		Debug:                       true,
 	}
 	t.Run("Setup DB", func(t *testing.T) {
-		db, err = database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Debug, ctx, wg)
+		db, err = database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.Debug, ctx, wg)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -18,5 +18,6 @@
   "device_id_prefix": "urn:infai:ses:device:",
   "service_id_prefix": "urn:infai:ses:service:",
   "apply_rules_at_startup": false,
+  "timeout": "60s",
   "debug": false
 }

@@ -35,11 +35,16 @@ type impl struct {
 	ruleTable  string
 	sql        *sql.DB
 	ctx        context.Context
+	timeout    time.Duration
 	debug      bool
 }
 
 func New(postgresHost string, postgresPort int, postgresUser string, postgresPw string, postgresDb string,
-	postgresRuleSchema string, postgresRuleTable string, debug bool, ctx context.Context, wg *sync.WaitGroup) (DB, error) {
+	postgresRuleSchema string, postgresRuleTable string, timeout string, debug bool, ctx context.Context, wg *sync.WaitGroup) (DB, error) {
+	timeoutD, err := time.ParseDuration(timeout)
+	if err != nil {
+		return nil, err
+	}
 	psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", postgresHost,
 		postgresPort, postgresUser, postgresPw, postgresDb)
 	log.Println("Connecting to PSQL...", psqlconn)
@@ -61,12 +66,12 @@ func New(postgresHost string, postgresPort int, postgresUser string, postgresPw 
 		_ = db.Close()
 		return nil, err
 	}
-	i := &impl{sql: db, ctx: ctx, ruleSchema: postgresRuleSchema, ruleTable: postgresRuleTable, debug: debug}
+	i := &impl{sql: db, ctx: ctx, ruleSchema: postgresRuleSchema, ruleTable: postgresRuleTable, timeout: timeoutD, debug: debug}
 	return i, i.migrate()
 }
 
 func (this *impl) GetTx() (tx *sql.Tx, cancel context.CancelFunc, err error) {
-	ctx, cancel := context.WithTimeout(this.ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(this.ctx, this.timeout)
 	if err != nil {
 		cancel()
 		return nil, nil, err

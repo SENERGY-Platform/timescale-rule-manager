@@ -52,8 +52,9 @@ type Config struct {
 	DeviceIdPrefix  string `json:"device_id_prefix"`
 	ServiceIdPrefix string `json:"service_id_prefix"`
 
-	ApplyRulesAtStartup bool `json:"apply_rules_at_startup"`
-	Debug               bool `json:"debug"`
+	ApplyRulesAtStartup bool   `json:"apply_rules_at_startup"`
+	Timeout             string `json:"timeout"`
+	Debug               bool   `json:"debug"`
 }
 
 // loads config from json in location and used environment variables (e.g ZookeeperUrl --> ZOOKEEPER_URL)
