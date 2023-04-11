@@ -35,10 +35,11 @@ type impl struct {
 	ruleTable  string
 	sql        *sql.DB
 	ctx        context.Context
+	debug      bool
 }
 
 func New(postgresHost string, postgresPort int, postgresUser string, postgresPw string, postgresDb string,
-	postgresRuleSchema string, postgresRuleTable string, ctx context.Context, wg *sync.WaitGroup) (DB, error) {
+	postgresRuleSchema string, postgresRuleTable string, debug bool, ctx context.Context, wg *sync.WaitGroup) (DB, error) {
 	psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", postgresHost,
 		postgresPort, postgresUser, postgresPw, postgresDb)
 	log.Println("Connecting to PSQL...", psqlconn)
@@ -60,7 +61,7 @@ func New(postgresHost string, postgresPort int, postgresUser string, postgresPw 
 		_ = db.Close()
 		return nil, err
 	}
-	i := &impl{sql: db, ctx: ctx, ruleSchema: postgresRuleSchema, ruleTable: postgresRuleTable}
+	i := &impl{sql: db, ctx: ctx, ruleSchema: postgresRuleSchema, ruleTable: postgresRuleTable, debug: debug}
 	return i, i.migrate()
 }
 
@@ -252,5 +253,8 @@ func (this *impl) FindMatchingRulesWithOwnerInfo(table string, userIds []string,
 }
 
 func (this *impl) Exec(query string, tx *sql.Tx) (sql.Result, error) {
+	if this.debug {
+		log.Println(query)
+	}
 	return tx.Exec(query)
 }

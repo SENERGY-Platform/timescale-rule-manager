@@ -546,7 +546,7 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		Debug:                       true,
 	}
 	t.Run("Setup DB", func(t *testing.T) {
-		db, err = database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, ctx, wg)
+		db, err = database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Debug, ctx, wg)
 		if err != nil {
 			t.Fatal(err)
 		}
