@@ -364,20 +364,6 @@ func (this *impl) runRule(rule *model.Rule) {
 		log.Println("ERROR: ", err)
 		return
 	}
-
-	tables, err := this.db.FindMatchingTables([]string{rule.Id}, tx)
-	if err != nil {
-		err = tx.Rollback()
-		if err != nil {
-			log.Println("ERROR", err)
-		}
-		rule.Errors = append(rule.Errors, err.Error())
-		err = this.saveRule(rule)
-		if err != nil {
-			log.Println("ERROR", err)
-		}
-		return
-	}
 	rollbackAndSave := func(rule *model.Rule) {
 		err = tx.Rollback()
 		if err != nil {
@@ -388,6 +374,13 @@ func (this *impl) runRule(rule *model.Rule) {
 			log.Println("ERROR", err)
 		}
 	}
+	tables, err := this.db.FindMatchingTables([]string{rule.Id}, tx)
+	if err != nil {
+		rule.Errors = append(rule.Errors, err.Error())
+		rollbackAndSave(rule)
+		return
+	}
+
 	for _, table := range tables {
 		_, _, err := this.applyRulesForTable(table, false, []string{rule.Id}, tx)
 		if err != nil {
@@ -403,6 +396,7 @@ func (this *impl) runRule(rule *model.Rule) {
 		}
 		if rule.Errors != nil && len(rule.Errors) > 0 {
 			rollbackAndSave(rule)
+			return
 		}
 	}
 
