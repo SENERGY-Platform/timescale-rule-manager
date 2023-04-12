@@ -261,7 +261,7 @@ func (this *impl) Exec(query string, tx *sql.Tx) (sql.Result, error) {
 	t := time.Now()
 	r, err := tx.Exec(query)
 	if this.debug {
-		log.Println("executed in " + time.Since(t).String() + ": " + query)
+		log.Println("DEBUG: executed in " + time.Since(t).String() + ": " + query)
 	}
 	return r, err
 }

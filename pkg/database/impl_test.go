@@ -34,11 +34,12 @@ func TestFillInsertQuery(t *testing.T) {
 		CommandTemplate: "CREATE TABLE wtf;",
 		DeleteTemplate:  "DROP TABLE wtf;",
 		Errors:          []string{},
+		CompletedRun:    false,
 	})
-	if !reflect.DeepEqual(fields, []string{"Id", "Description", "Priority", "Group", "TableRegEx", "Users", "Roles", "CommandTemplate", "DeleteTemplate", "Errors"}) {
+	if !reflect.DeepEqual(fields, []string{"Id", "Description", "Priority", "Group", "TableRegEx", "Users", "Roles", "CommandTemplate", "DeleteTemplate", "Errors", "CompletedRun"}) {
 		t.Error("fields not as expected")
 	}
-	if !reflect.DeepEqual(values, []string{"'0'", "'test'", "'1'", "'2'", "'.*'", "'{\"sepl\", \"jürgen\"}'", "'{\"user\", \"admin\"}'", "'CREATE TABLE wtf;'", "'DROP TABLE wtf;'", "'{}'"}) {
+	if !reflect.DeepEqual(values, []string{"'0'", "'test'", "'1'", "'2'", "'.*'", "'{\"sepl\", \"jürgen\"}'", "'{\"user\", \"admin\"}'", "'CREATE TABLE wtf;'", "'DROP TABLE wtf;'", "'{}'", "FALSE"}) {
 		t.Error("values not as expected")
 	}
 }
@@ -54,6 +55,7 @@ func BenchmarkFillInsertQuery(b *testing.B) {
 		Roles:           []string{"user", "admin"},
 		CommandTemplate: "CREATE TABLE wtf;",
 		DeleteTemplate:  "DROP TABLE wtf;",
+		CompletedRun:    false,
 	}
 	for i := 0; i < b.N; i++ {
 		getFieldsAndValues(rule)

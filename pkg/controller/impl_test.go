@@ -29,6 +29,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestIntegration(t *testing.T) {
@@ -247,6 +248,7 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		time.Sleep(2 * time.Second) // rule logic applied async
 		t.Run("Rule template executed for table correctly", func(t *testing.T) {
 			columns, err := db.GetColumns("device:7IUxe2sUT32dRXAZhzXczw_service:F_gsbPBvSb6xEz8lAWpguw_ld")
 			if err != nil {
@@ -380,6 +382,7 @@ func TestRuleLogicForExportTables(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		time.Sleep(2 * time.Second) // rule logic applied async
 		t.Run("Rule template executed for table correctly", func(t *testing.T) {
 			columns, err := db.GetColumns("userid:" + shortUserId + "_export:F_gsbPBvSb6xEz8lAWpguw_ld")
 			if err != nil {
@@ -504,8 +507,16 @@ func TestUpdateErrorHandling(t *testing.T) {
 	}
 
 	_, err = c.UpdateRule(rule)
-	if err == nil {
-		t.Fatal("Expected error")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(2 * time.Second) // rule logic applied async
+	r, _, err := c.GetRule(rule.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.CompletedRun || r.Errors == nil || len(r.Errors) == 0 {
+		t.Fatal("expected error")
 	}
 	rule.CommandTemplate = `
 			CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"

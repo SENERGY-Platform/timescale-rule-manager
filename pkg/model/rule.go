@@ -27,6 +27,7 @@ type Rule struct {
 	CommandTemplate string   `sqltype:"text" json:"command_template,omitempty"`
 	DeleteTemplate  string   `sqltype:"text" json:"delete_template,omitempty"`
 	Errors          []string `sqltype:"text[]" json:"errors,omitempty"`
+	CompletedRun    bool     `sqltype:"boolean" sqlextra:"not null default false" json:"completed_run"`
 }
 
 type TableInfo struct {

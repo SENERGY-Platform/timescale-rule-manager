@@ -34,8 +34,10 @@ func TestQueryString(t *testing.T) {
 			"\"Roles\" text[],\n"+
 			"\"CommandTemplate\" text,\n"+
 			"\"DeleteTemplate\" text,\n"+
-			"\"Errors\" text[]\n"+
-			");" {
+			"\"Errors\" text[],\n"+
+			"\"CompletedRun\" boolean not null default false\n"+
+			");\n"+
+			"ALTER TABLE \"schema\".\"rules\" ADD COLUMN IF NOT EXISTS \"CompletedRun\" boolean not null default false;" {
 		t.Error("Unexpected result from getMigrationQuery(): " + query)
 	}
 }

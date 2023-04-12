@@ -107,6 +107,13 @@ func getFieldsAndValues(rule *model.Rule) (fields []string, values []string) {
 			} else {
 				value = "FALSE"
 			}
+		case bool:
+			b := fv.Interface().(bool)
+			if b {
+				value = "TRUE"
+			} else {
+				value = "FALSE"
+			}
 		default:
 			value = "NULL"
 		}
@@ -125,6 +132,6 @@ func scan(r scannable, rule *model.Rule, other ...any) error {
 	}
 	other = append(other, &rule.Id, &rule.Description, &rule.Priority, &rule.Group, &rule.TableRegEx,
 		(*pq.StringArray)(&rule.Users), (*pq.StringArray)(&rule.Roles), &rule.CommandTemplate, &rule.DeleteTemplate,
-		(*pq.StringArray)(&rule.Errors))
+		(*pq.StringArray)(&rule.Errors), &rule.CompletedRun)
 	return r.Scan(other...)
 }

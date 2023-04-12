@@ -176,7 +176,7 @@ func TestKafkaUpdateBehaviour(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
+		time.Sleep(2 * time.Second) // rule logic applied async
 		t.Run("Rule template executed for table correctly", func(t *testing.T) {
 			columns, err := db.GetColumns("device:cEL1di0o97qVfsf1bcHCTw_service:mDrcbGbpQuuDlh9CURj33Q_ld")
 			if err != nil {

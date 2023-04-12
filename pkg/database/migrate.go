@@ -60,5 +60,6 @@ func (this *impl) getMigrationQuery() string {
 
 	}
 	query += "\n);"
+	query += "\nALTER TABLE \"" + this.ruleSchema + "\".\"" + this.ruleTable + "\" ADD COLUMN IF NOT EXISTS \"CompletedRun\" boolean not null default false;"
 	return query
 }

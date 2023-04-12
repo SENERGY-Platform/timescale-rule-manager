@@ -67,6 +67,7 @@ func (this *impl) CreateRule(rule *model.Rule) (res *model.Rule, code int, err e
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
+	rule.CompletedRun = false
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
 	if err != nil {
@@ -76,34 +77,11 @@ func (this *impl) CreateRule(rule *model.Rule) (res *model.Rule, code int, err e
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
-	tables, err := this.db.FindMatchingTables([]string{rule.Id}, tx)
-	if err != nil {
-		return nil, http.StatusInternalServerError, err
-	}
-	for _, table := range tables {
-		allRanOk, code, err := this.applyRulesForTable(table, false, []string{rule.Id}, tx)
-		if err != nil {
-			return nil, code, err
-		}
-		respErr := errors.New("rule template finished with errors")
-		rule, err = this.db.GetRule(rule.Id, tx)
-		if err != nil {
-			return nil, http.StatusInternalServerError, err
-		}
-		if rule.Errors != nil {
-			for _, errStr := range rule.Errors {
-				respErr = errors.Join(respErr, errors.New(errStr))
-			}
-		}
-		if !allRanOk {
-			return nil, http.StatusBadRequest, respErr
-		}
-	}
-
 	err = tx.Commit()
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
+	go this.runRule(rule)
 	return rule, http.StatusOK, nil
 }
 func (this *impl) UpdateRule(rule *model.Rule) (code int, err error) {
@@ -112,7 +90,7 @@ func (this *impl) UpdateRule(rule *model.Rule) (code int, err error) {
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	rule.Errors = []string{} // empty now, will be filled when running template
+	rule.CompletedRun = false
 	err = this.db.UpdateRule(rule, tx)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
@@ -120,34 +98,11 @@ func (this *impl) UpdateRule(rule *model.Rule) (code int, err error) {
 		}
 		return http.StatusInternalServerError, err
 	}
-	tables, err := this.db.FindMatchingTables([]string{rule.Id}, tx)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	for _, table := range tables {
-		allRanOk, code, err := this.applyRulesForTable(table, false, []string{rule.Id}, tx)
-		if err != nil {
-			return code, err
-		}
-		respErr := errors.New("rule template finished with errors")
-		rule, err = this.db.GetRule(rule.Id, tx)
-		if err != nil {
-			return http.StatusInternalServerError, err
-		}
-		if rule.Errors != nil {
-			for _, errStr := range rule.Errors {
-				respErr = errors.Join(respErr, errors.New(errStr))
-			}
-		}
-		if !allRanOk {
-			return http.StatusBadRequest, respErr
-		}
-	}
-
 	err = tx.Commit()
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
+	go this.runRule(rule)
 	return http.StatusOK, nil
 }
 func (this *impl) DeleteRule(id string) (code int, err error) {
@@ -393,6 +348,89 @@ func (this *impl) ApplyAllRules() error {
 		if len(rules) < limit {
 			break
 		}
+	}
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (this *impl) runRule(rule *model.Rule) {
+	rule.Errors = []string{}
+	tx, cancel, err := this.db.GetTx()
+	defer cancel()
+	if err != nil {
+		log.Println("ERROR: ", err)
+		return
+	}
+
+	tables, err := this.db.FindMatchingTables([]string{rule.Id}, tx)
+	if err != nil {
+		err = tx.Rollback()
+		if err != nil {
+			log.Println("ERROR", err)
+		}
+		rule.Errors = append(rule.Errors, err.Error())
+		err = this.saveRule(rule)
+		if err != nil {
+			log.Println("ERROR", err)
+		}
+		return
+	}
+	rollbackAndSave := func(rule *model.Rule) {
+		err = tx.Rollback()
+		if err != nil {
+			log.Println("ERROR", err)
+		}
+		err = this.saveRule(rule)
+		if err != nil {
+			log.Println("ERROR", err)
+		}
+	}
+	for _, table := range tables {
+		_, _, err := this.applyRulesForTable(table, false, []string{rule.Id}, tx)
+		if err != nil {
+			rule.Errors = append(rule.Errors, err.Error())
+			rollbackAndSave(rule)
+			return
+		}
+		rule, err = this.db.GetRule(rule.Id, tx)
+		if err != nil {
+			rule.Errors = append(rule.Errors, err.Error())
+			rollbackAndSave(rule)
+			return
+		}
+		if rule.Errors != nil && len(rule.Errors) > 0 {
+			rollbackAndSave(rule)
+		}
+	}
+
+	rule.CompletedRun = true
+	err = this.db.UpdateRule(rule, tx)
+	if err != nil {
+		log.Println("ERROR", err)
+		return
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Println("ERROR", err)
+		return
+	}
+
+	return
+}
+
+func (this *impl) saveRule(rule *model.Rule) error {
+	tx, cancel, err := this.db.GetTx()
+	defer cancel()
+	if err != nil {
+		return err
+	}
+	err = this.db.UpdateRule(rule, tx)
+	if err != nil {
+		return err
 	}
 	err = tx.Commit()
 	if err != nil {
