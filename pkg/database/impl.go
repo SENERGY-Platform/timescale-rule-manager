@@ -258,8 +258,10 @@ func (this *impl) FindMatchingRulesWithOwnerInfo(table string, userIds []string,
 }
 
 func (this *impl) Exec(query string, tx *sql.Tx) (sql.Result, error) {
+	t := time.Now()
+	r, err := tx.Exec(query)
 	if this.debug {
-		log.Println(query)
+		log.Println("executed in " + time.Since(t).String() + ": " + query)
 	}
-	return tx.Exec(query)
+	return r, err
 }
