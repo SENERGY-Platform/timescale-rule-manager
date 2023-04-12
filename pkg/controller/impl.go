@@ -216,6 +216,7 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 			}
 			rights, _, err := this.permissionSearch.GetRights(token.JwtToken(), "devices", tableInfo.DeviceId)
 			if err != nil {
+				err = errors.New(err.Error() + tableInfo.DeviceId)
 				return false, http.StatusInternalServerError, err
 			}
 			tableInfo.Roles = []string{}
@@ -238,6 +239,7 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 	for _, userId := range tableInfo.UserIds {
 		realmRoleMappings, err := this.oidClient.GetRealmRoleMappings(userId)
 		if err != nil {
+			err = errors.New(err.Error() + ", userId: " + userId)
 			return false, http.StatusInternalServerError, err
 		}
 		for _, realmRoleMapping := range realmRoleMappings {
