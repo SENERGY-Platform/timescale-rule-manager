@@ -23,6 +23,7 @@ import (
 	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
 	"github.com/senergy-platform/timescale-rule-manager/pkg/kafka"
 	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -99,5 +100,5 @@ func (this *impl) kafkaMessageHandler(topic string, msg []byte, _ time.Time) err
 }
 
 func (this *impl) kafkaErrorHandler(err error, consumer *kafka.Consumer) {
-	panic("Kafka Error: " + err.Error())
+	log.Println("ERROR: Kafka : " + err.Error())
 }
