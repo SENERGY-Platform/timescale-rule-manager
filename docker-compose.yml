@@ -50,7 +50,7 @@ services:
       test: bash -c ':> /dev/tcp/127.0.0.1/8080'
       interval: 10s
       timeout: 3s
-      retries: 3
+      retries: 12
   keycloak-config:
     image: 'quay.io/keycloak/keycloak:22.0.0'
     volumes:
