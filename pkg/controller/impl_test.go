@@ -553,7 +553,7 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		PostgresDb:                  "database",
 		PostgresRuleSchema:          "public",
 		PostgresRuleTable:           "rules",
-		KeycloakUrl:                 "http://localhost:8081",
+		KeycloakUrl:                 "http://localhost:8123",
 		KeycloakClientId:            "myapp",
 		KeycloakClientSecret:        "d0b8122f-8dfb-46b7-b68a-f5cc4e25d000",
 		ApplyRulesAtStartup:         false,
