@@ -71,7 +71,8 @@ func TestIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(list, []model.Rule{*rule}) {
+		l2 := []model.Rule{*rule}
+		if !reflect.DeepEqual(list, l2) {
 			t.Fatal("Created != Read")
 		}
 	})
@@ -244,10 +245,11 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 		}
 
-		_, _, err = c.CreateRule(&rule)
+		ruleTmp, _, err := c.CreateRule(&rule)
 		if err != nil {
 			t.Fatal(err)
 		}
+		rule = *ruleTmp
 		time.Sleep(2 * time.Second) // rule logic applied async
 		t.Run("Rule template executed for table correctly", func(t *testing.T) {
 			columns, err := db.GetColumns("device:7IUxe2sUT32dRXAZhzXczw_service:F_gsbPBvSb6xEz8lAWpguw_ld")
@@ -378,10 +380,11 @@ func TestRuleLogicForExportTables(t *testing.T) {
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 		}
 
-		_, _, err = c.CreateRule(&rule)
+		ruleTmp, _, err := c.CreateRule(&rule)
 		if err != nil {
 			t.Fatal(err)
 		}
+		rule = *ruleTmp
 		time.Sleep(2 * time.Second) // rule logic applied async
 		t.Run("Rule template executed for table correctly", func(t *testing.T) {
 			columns, err := db.GetColumns("userid:" + shortUserId + "_export:F_gsbPBvSb6xEz8lAWpguw_ld")

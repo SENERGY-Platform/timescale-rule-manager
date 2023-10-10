@@ -60,20 +60,21 @@ func New(c config.Config, db database.DB, permissionSearch perm.Client, ctx cont
 }
 
 func (this *impl) CreateRule(rule *model.Rule) (res *model.Rule, code int, err error) {
-	if len(rule.Id) != 0 {
+	myRule := rule.Copy()
+	if len(myRule.Id) != 0 {
 		return nil, http.StatusBadRequest, errors.New("may not specify Id yourself")
 	}
-	rule.Id, err = uuid.GenerateUUID()
+	myRule.Id, err = uuid.GenerateUUID()
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
-	rule.CompletedRun = false
+	myRule.CompletedRun = false
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
-	err = this.db.InsertRule(rule, tx)
+	err = this.db.InsertRule(&myRule, tx)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
@@ -81,8 +82,9 @@ func (this *impl) CreateRule(rule *model.Rule) (res *model.Rule, code int, err e
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
-	go this.runRule(rule)
-	return rule, http.StatusOK, nil
+	runRule := myRule.Copy()
+	go this.runRule(&runRule)
+	return &myRule, http.StatusOK, nil
 }
 func (this *impl) UpdateRule(rule *model.Rule) (code int, err error) {
 	tx, cancel, err := this.db.GetTx()
