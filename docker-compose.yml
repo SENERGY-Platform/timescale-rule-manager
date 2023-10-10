@@ -52,7 +52,7 @@ services:
       timeout: 3s
       retries: 3
   keycloak-config:
-    image: 'quay.io/keycloak/keycloak'
+    image: 'quay.io/keycloak/keycloak:22.0.0'
     volumes:
       - ./keycloak-config.sh:/tmp/keycloak-config.sh
     entrypoint: bash -c
