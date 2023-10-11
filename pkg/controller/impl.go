@@ -23,11 +23,11 @@ import (
 	"errors"
 	"github.com/SENERGY-Platform/models/go/models"
 	perm "github.com/SENERGY-Platform/permission-search/lib/client"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/security"
 	"github.com/hashicorp/go-uuid"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/database"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/security"
 	"golang.org/x/exp/slices"
 	"log"
 	"net/http"
@@ -216,7 +216,7 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 			if err != nil {
 				return false, http.StatusInternalServerError, err
 			}
-			rights, _, err := this.permissionSearch.GetRights(token.JwtToken(), "devices", tableInfo.DeviceId)
+			rights, err := this.permissionSearch.GetRights(token.JwtToken(), "devices", tableInfo.DeviceId)
 			if err != nil {
 				err = errors.New(err.Error() + tableInfo.DeviceId)
 				return false, http.StatusInternalServerError, err

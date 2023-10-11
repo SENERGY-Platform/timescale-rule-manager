@@ -17,7 +17,7 @@
 package database
 
 import (
-	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"reflect"
 	"testing"
 )

@@ -20,7 +20,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 )
 
 type DB interface {

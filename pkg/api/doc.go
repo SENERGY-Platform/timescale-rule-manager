@@ -18,9 +18,9 @@ package api
 
 import (
 	"fmt"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
 	"github.com/julienschmidt/httprouter"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/controller"
 	"log"
 	"net/http"
 	"os"

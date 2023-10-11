@@ -19,8 +19,8 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/senergy-platform/timescale-rule-manager/pkg"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"log"
 	"os"
 	"os/signal"

@@ -22,10 +22,10 @@ import (
 	"github.com/SENERGY-Platform/models/go/models"
 	perm "github.com/SENERGY-Platform/permission-search/lib/client"
 	perm_model "github.com/SENERGY-Platform/permission-search/lib/model"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/hashicorp/go-uuid"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/database"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
 	"reflect"
 	"sync"
 	"testing"
@@ -535,7 +535,7 @@ func TestUpdateErrorHandling(t *testing.T) {
 	}
 }
 
-func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.Config, c Controller, db database.DB, permSearch perm.TestClient, cleanup func()) {
+func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.Config, c Controller, db database.DB, permSearch *perm.TestClient, cleanup func()) {
 	ctx = context.Background()
 	wg = &sync.WaitGroup{}
 	permSearch = perm.NewTestClient()

@@ -18,10 +18,10 @@ package api
 
 import (
 	"encoding/json"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/julienschmidt/httprouter"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/controller"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
 	"net/http"
 	"strconv"
 )
