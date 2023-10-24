@@ -57,7 +57,8 @@ func New(c *config.Config) (*TemplateStore, error) {
 	}
 	singleton.mux.Lock()
 	for _, file := range files {
-		if file.IsDir() {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".json") {
+			log.Println("Ignoring template in " + file.Name() + ": is dir or does not end in .json")
 			continue
 		}
 		tmpl, err := os.ReadFile(c.TemplateDir + "/" + file.Name())
@@ -87,6 +88,10 @@ func New(c *config.Config) (*TemplateStore, error) {
 					return
 				}
 				log.Println("fsnotify event:", event)
+				if !strings.HasSuffix(event.Name, ".json") {
+					log.Println("Ignoring template in " + event.Name + ": does not end in .json")
+					continue
+				}
 				switch event.Op {
 				// A new pathname was created.
 				case fsnotify.Create, fsnotify.Write:
