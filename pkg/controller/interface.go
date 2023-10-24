@@ -21,11 +21,11 @@ import (
 )
 
 type Controller interface {
-	CreateRule(rule *model.Rule) (res *model.Rule, code int, err error)
+	CreateRule(rule *model.Rule) (res *model.TypedRule, code int, err error)
 	UpdateRule(rule *model.Rule) (code int, err error)
 	DeleteRule(id string) (code int, err error)
-	GetRule(id string) (rule *model.Rule, code int, err error)
-	ListRules(limit, offset int) (rules []model.Rule, code int, err error)
+	GetRule(id string) (rule *model.TypedRule, code int, err error)
+	ListRules(limit, offset int) (rules []model.TypedRule, code int, err error)
 
 	ApplyAllRules() (err error)
 	ApplyAllRulesForTable(table string, useDeleteTemplateInstead bool) (code int, err error)

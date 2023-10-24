@@ -19,6 +19,11 @@ package pkg
 import (
 	"context"
 	"github.com/SENERGY-Platform/permission-search/lib/client"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/api"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/controller"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/database"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/templates"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/api"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
@@ -28,6 +33,11 @@ import (
 
 func Start(ctx context.Context, conf config.Config) (wg *sync.WaitGroup, err error) {
 	wg = &sync.WaitGroup{}
+
+	_, err = templates.New()
+	if err != nil {
+		return wg, err
+	}
 
 	db, err := database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.Debug, ctx, wg)
 	if err != nil {

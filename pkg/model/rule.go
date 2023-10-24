@@ -30,33 +30,29 @@ type Rule struct {
 	CompletedRun    bool     `sqltype:"boolean" sqlextra:"not null default false" json:"completed_run"`
 }
 
-func (rule *Rule) Copy() Rule {
-	myRule := Rule{
-		Id:          rule.Id,
-		Description: rule.Description,
-		Priority:    rule.Priority,
-		Group:       rule.Group,
-		TableRegEx:  rule.TableRegEx,
-		//Users:           rule.Users,
-		//Roles:           rule.Roles,
-		CommandTemplate: rule.CommandTemplate,
-		DeleteTemplate:  rule.DeleteTemplate,
-		//Errors:          rule.Errors,
-		CompletedRun: rule.CompletedRun,
-	}
-	if rule.Users != nil {
-		myRule.Users = []string{}
-		myRule.Users = append(myRule.Users, rule.Users...)
-	}
-	if rule.Roles != nil {
-		myRule.Roles = []string{}
-		myRule.Roles = append(myRule.Roles, rule.Roles...)
-	}
-	if rule.Errors != nil {
-		myRule.Errors = []string{}
-		myRule.Errors = append(myRule.Errors, rule.Errors...)
-	}
-	return myRule
+type TypedRule struct {
+	*Rule
+	Type     RuleType           `json:"type"`
+	Template string             `json:"template"`
+	Target   TemplateRuleTarget `json:"target,omitempty"`
+}
+
+type RuleType = string
+
+const RuleTypeCustom = "custom"
+const RuleTypeTemplate = "template"
+
+type TemplateRuleTarget = string
+
+const TemplateRuleTargetDevice TemplateRuleTarget = "device"
+const TemplateRuleTargetExport TemplateRuleTarget = "export"
+
+type TemplateRule struct {
+	Id       string             `json:"id,omitempty"` // Set by API
+	Target   TemplateRuleTarget `json:"target,omitempty"`
+	Users    []string           `json:"users,omitempty"`
+	Roles    []string           `json:"roles,omitempty"`
+	Template string             `json:"template,omitempty"`
 }
 
 type TableInfo struct {

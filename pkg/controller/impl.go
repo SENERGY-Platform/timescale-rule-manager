@@ -59,7 +59,7 @@ func New(c config.Config, db database.DB, permissionSearch perm.Client, ctx cont
 	return controller, err
 }
 
-func (this *impl) CreateRule(rule *model.Rule) (res *model.Rule, code int, err error) {
+func (this *impl) CreateRule(rule *model.Rule) (res *model.TypedRule, code int, err error) {
 	myRule := rule.Copy()
 	if len(myRule.Id) != 0 {
 		return nil, http.StatusBadRequest, errors.New("may not specify Id yourself")
@@ -84,7 +84,11 @@ func (this *impl) CreateRule(rule *model.Rule) (res *model.Rule, code int, err e
 	}
 	runRule := myRule.Copy()
 	go this.runRule(&runRule)
-	return &myRule, http.StatusOK, nil
+	typed, err := myRule.Type()
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	return typed, http.StatusOK, nil
 }
 func (this *impl) UpdateRule(rule *model.Rule) (code int, err error) {
 	tx, cancel, err := this.db.GetTx()
@@ -140,27 +144,39 @@ func (this *impl) DeleteRule(id string) (code int, err error) {
 	}
 	return http.StatusOK, nil
 }
-func (this *impl) GetRule(id string) (rule *model.Rule, code int, err error) {
+func (this *impl) GetRule(id string) (typedRule *model.TypedRule, code int, err error) {
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
-	rule, err = this.db.GetRule(id, tx)
+	rule, err := this.db.GetRule(id, tx)
 	if err != nil {
 		if errors.Is(err, database.ErrNotFound) {
 			return nil, http.StatusNotFound, err
 		}
 		return nil, http.StatusInternalServerError, err
 	}
-	return rule, http.StatusOK, nil
-}
-func (this *impl) ListRules(limit, offset int) (rules []model.Rule, code int, err error) {
-	rules, err = this.db.ListRules(limit, offset)
+	typed, err := rule.Type()
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
-	return rules, http.StatusOK, nil
+	return typed, http.StatusOK, nil
+}
+func (this *impl) ListRules(limit, offset int) (typedRules []model.TypedRule, code int, err error) {
+	rules, err := this.db.ListRules(limit, offset)
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	typedRules = []model.TypedRule{}
+	for _, rule := range rules {
+		typed, err := rule.Type()
+		if err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+		typedRules = append(typedRules, *typed)
+	}
+	return typedRules, http.StatusOK, nil
 }
 
 var exportTableMatch = regexp.MustCompile("userid:(.{22})_export:(.{22}).*")

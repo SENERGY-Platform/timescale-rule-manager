@@ -1,0 +1,7 @@
+{
+  "command_template": "insert something meaningful",
+  "delete_template": "delete something meaningful",
+  "description": "just for testing",
+  "priority": 0,
+  "group": "test"
+}

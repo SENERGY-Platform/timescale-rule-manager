@@ -54,15 +54,20 @@ func TestIntegration(t *testing.T) {
 			t.Fatal("was able to set id myself")
 		}
 		rule.Id = ""
-		rule, _, err = c.CreateRule(rule)
+		typedRule, _, err := c.CreateRule(rule)
 		if err != nil {
 			t.Fatal(err)
 		}
-		savedRule, _, err := c.GetRule(rule.Id)
+		rule.Id = typedRule.Id
+		savedRule, _, err := c.GetRule(typedRule.Id)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(*savedRule, *rule) {
+		typed, err := rule.Type()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(*savedRule, *typed) {
 			t.Fatal("Created != Read")
 		}
 	})
@@ -71,7 +76,11 @@ func TestIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		l2 := []model.Rule{*rule}
+		typed, err := rule.Type()
+		if err != nil {
+			t.Fatal(err)
+		}
+		l2 := []model.TypedRule{*typed}
 		if !reflect.DeepEqual(list, l2) {
 			t.Fatal("Created != Read")
 		}
@@ -245,11 +254,10 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 		}
 
-		ruleTmp, _, err := c.CreateRule(&rule)
+		typedRule, _, err := c.CreateRule(&rule)
 		if err != nil {
 			t.Fatal(err)
 		}
-		rule = *ruleTmp
 		time.Sleep(2 * time.Second) // rule logic applied async
 		t.Run("Rule template executed for table correctly", func(t *testing.T) {
 			columns, err := db.GetColumns("device:7IUxe2sUT32dRXAZhzXczw_service:F_gsbPBvSb6xEz8lAWpguw_ld")
@@ -272,7 +280,7 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 		})
 
 		t.Run("Rule delete template executed for table correctly", func(t *testing.T) {
-			_, err = c.DeleteRule(rule.Id)
+			_, err = c.DeleteRule(typedRule.Id)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -380,11 +388,10 @@ func TestRuleLogicForExportTables(t *testing.T) {
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 		}
 
-		ruleTmp, _, err := c.CreateRule(&rule)
+		typedRule, _, err := c.CreateRule(&rule)
 		if err != nil {
 			t.Fatal(err)
 		}
-		rule = *ruleTmp
 		time.Sleep(2 * time.Second) // rule logic applied async
 		t.Run("Rule template executed for table correctly", func(t *testing.T) {
 			columns, err := db.GetColumns("userid:" + shortUserId + "_export:F_gsbPBvSb6xEz8lAWpguw_ld")
@@ -407,7 +414,7 @@ func TestRuleLogicForExportTables(t *testing.T) {
 		})
 
 		t.Run("Rule delete template executed for table correctly", func(t *testing.T) {
-			_, err = c.DeleteRule(rule.Id)
+			_, err = c.DeleteRule(typedRule.Id)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -459,7 +466,7 @@ func TestUpdateErrorHandling(t *testing.T) {
 		DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 	}
 
-	rule, _, err = c.CreateRule(rule)
+	typedRule, _, err := c.CreateRule(rule)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -509,12 +516,12 @@ func TestUpdateErrorHandling(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = c.UpdateRule(rule)
+	_, err = c.UpdateRule(typedRule.Rule)
 	if err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(2 * time.Second) // rule logic applied async
-	r, _, err := c.GetRule(rule.Id)
+	r, _, err := c.GetRule(typedRule.Id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -529,7 +536,7 @@ func TestUpdateErrorHandling(t *testing.T) {
 			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
 			FROM "{{.Table}}"
 			GROUP BY time_bucket(INTERVAL '1 day', time) WITH NO DATA;`
-	_, err = c.UpdateRule(rule)
+	_, err = c.UpdateRule(typedRule.Rule)
 	if err != nil {
 		t.Fatal(err)
 	}

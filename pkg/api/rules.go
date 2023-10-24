@@ -54,7 +54,7 @@ func RulesEndpoint(router *httprouter.Router, config config.Config, control cont
 				return
 			}
 		} else {
-			offset = 50
+			offset = 0
 		}
 
 		rules, code, err := control.ListRules(limit, offset)
