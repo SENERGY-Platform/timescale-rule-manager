@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"github.com/SENERGY-Platform/models/go/models"
 	perm_model "github.com/SENERGY-Platform/permission-search/lib/model"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/templates"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"testing"
 	"time"
@@ -27,6 +29,10 @@ import (
 
 func TestKafkaUpdateBehaviour(t *testing.T) {
 	_, _, conf, c, db, permSearch, cleanup := setup(t)
+	_, err := templates.New(&conf)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer cleanup()
 	i := c.(*impl)
 	users, err := i.oidClient.GetUsers()

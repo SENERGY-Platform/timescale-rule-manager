@@ -22,7 +22,7 @@ import (
 )
 
 func (rule *Rule) Type() (*TypedRule, error) {
-	ts, err := templates.New()
+	ts, err := templates.New(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (rule *Rule) matchesTemplate(template templates.Template) bool {
 }
 
 func (r *TemplateRule) Rule() (*Rule, error) {
-	ts, err := templates.New()
+	ts, err := templates.New(nil)
 	if err != nil {
 		return nil, err
 	}

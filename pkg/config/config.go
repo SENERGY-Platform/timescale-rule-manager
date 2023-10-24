@@ -54,6 +54,7 @@ type Config struct {
 
 	ApplyRulesAtStartup bool   `json:"apply_rules_at_startup"`
 	Timeout             string `json:"timeout"`
+	TemplateDir         string `json:"template_dir"`
 	Debug               bool   `json:"debug"`
 }
 
@@ -70,7 +71,7 @@ func LoadConfig(location string) (config Config, err error) {
 		log.Println("invalid config json: ", err2)
 		return config, err2
 	}
-	handleEnvironmentVars(&config)
+	HandleEnvironmentVars(&config)
 	return config, nil
 }
 
@@ -90,7 +91,7 @@ func fieldNameToEnvName(s string) string {
 }
 
 // preparations for docker
-func handleEnvironmentVars(config *Config) {
+func HandleEnvironmentVars(config *Config) {
 	configValue := reflect.Indirect(reflect.ValueOf(config))
 	configType := configValue.Type()
 	for index := 0; index < configType.NumField(); index++ {

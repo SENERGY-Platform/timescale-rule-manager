@@ -18,7 +18,9 @@ package templates
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/fsnotify/fsnotify"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
 	"log"
 	"os"
 	"strings"
@@ -40,13 +42,16 @@ type TemplateStore struct {
 
 var singleton *TemplateStore
 
-func New() (*TemplateStore, error) {
+func New(c *config.Config) (*TemplateStore, error) {
 	if singleton != nil {
 		return singleton, nil
 	}
+	if c == nil {
+		return nil, errors.New("config can only be nil if singleton has been created with config")
+	}
 	singleton = &TemplateStore{Templates: make(map[string]Template), mux: sync.Mutex{}}
-	templateDir := "templates"
-	files, err := os.ReadDir(templateDir)
+	log.Println("Reading templates from " + c.TemplateDir)
+	files, err := os.ReadDir(c.TemplateDir)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +60,7 @@ func New() (*TemplateStore, error) {
 		if file.IsDir() {
 			continue
 		}
-		tmpl, err := os.ReadFile(templateDir + "/" + file.Name())
+		tmpl, err := os.ReadFile(c.TemplateDir + "/" + file.Name())
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +90,7 @@ func New() (*TemplateStore, error) {
 				switch event.Op {
 				// A new pathname was created.
 				case fsnotify.Create, fsnotify.Write:
-					if strings.HasPrefix(event.Name, templateDir) {
+					if strings.HasPrefix(event.Name, c.TemplateDir) {
 						singleton.mux.Lock()
 						var ruleTmpl Template
 						tmpl, err := os.ReadFile(event.Name)
@@ -98,15 +103,15 @@ func New() (*TemplateStore, error) {
 							log.Println("ERROR in fsnotify watcher. Templates might not update automatically: ", err)
 							continue
 						}
-						singleton.Templates[strings.TrimSuffix(strings.TrimPrefix(event.Name, templateDir+"/"), ".json")] = ruleTmpl
+						singleton.Templates[strings.TrimSuffix(strings.TrimPrefix(event.Name, c.TemplateDir+"/"), ".json")] = ruleTmpl
 						singleton.mux.Unlock()
 					}
 
 				// fsnotify.Rename will have the template deleted, but a fsnotify.Create will also be received
 				case fsnotify.Remove, fsnotify.Rename:
-					if strings.HasPrefix(event.Name, templateDir) {
+					if strings.HasPrefix(event.Name, c.TemplateDir) {
 						singleton.mux.Lock()
-						delete(singleton.Templates, strings.TrimSuffix(strings.TrimPrefix(event.Name, templateDir+"/"), ".json"))
+						delete(singleton.Templates, strings.TrimSuffix(strings.TrimPrefix(event.Name, c.TemplateDir+"/"), ".json"))
 						singleton.mux.Unlock()
 					}
 				}
@@ -121,7 +126,7 @@ func New() (*TemplateStore, error) {
 	}()
 
 	// Add a path.
-	err = watcher.Add(templateDir)
+	err = watcher.Add(c.TemplateDir)
 	if err != nil {
 		return nil, err
 	}

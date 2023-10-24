@@ -26,6 +26,10 @@ import (
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/hashicorp/go-uuid"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/database"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
+	"github.com/senergy-platform/timescale-rule-manager/pkg/templates"
 	"reflect"
 	"sync"
 	"testing"
@@ -33,7 +37,11 @@ import (
 )
 
 func TestIntegration(t *testing.T) {
-	_, _, _, c, _, _, cleanup := setup(t)
+	_, _, conf, c, _, _, cleanup := setup(t)
+	_, err := templates.New(&conf)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer cleanup()
 
 	rule := &model.Rule{
@@ -567,6 +575,7 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		Timeout:                     "30s",
 		Debug:                       true,
 	}
+	config.HandleEnvironmentVars(&conf)
 	t.Run("Setup DB", func(t *testing.T) {
 		db, err = database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.Debug, ctx, wg)
 		if err != nil {

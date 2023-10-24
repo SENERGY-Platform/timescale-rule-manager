@@ -81,7 +81,7 @@ func TemplateRulesEndpoint(router *httprouter.Router, _ config.Config, control c
 	})
 
 	router.GET("/templates", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		ts, err := templates.New()
+		ts, err := templates.New(nil)
 		if err != nil {
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return

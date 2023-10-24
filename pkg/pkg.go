@@ -34,7 +34,7 @@ import (
 func Start(ctx context.Context, conf config.Config) (wg *sync.WaitGroup, err error) {
 	wg = &sync.WaitGroup{}
 
-	_, err = templates.New()
+	_, err = templates.New(&conf)
 	if err != nil {
 		return wg, err
 	}
