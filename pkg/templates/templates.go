@@ -19,8 +19,8 @@ package templates
 import (
 	"encoding/json"
 	"errors"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/fsnotify/fsnotify"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
 	"log"
 	"os"
 	"strings"

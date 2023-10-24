@@ -20,9 +20,8 @@ import (
 	"encoding/json"
 	"github.com/SENERGY-Platform/models/go/models"
 	perm_model "github.com/SENERGY-Platform/permission-search/lib/model"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/model"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/templates"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
 	"testing"
 	"time"
 )

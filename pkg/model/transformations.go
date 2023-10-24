@@ -18,7 +18,7 @@ package model
 
 import (
 	"errors"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/templates"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
 )
 
 func (rule *Rule) Type() (*TypedRule, error) {

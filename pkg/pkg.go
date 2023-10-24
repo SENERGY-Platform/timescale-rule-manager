@@ -19,15 +19,11 @@ package pkg
 import (
 	"context"
 	"github.com/SENERGY-Platform/permission-search/lib/client"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/api"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/config"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/controller"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/database"
-	"github.com/senergy-platform/timescale-rule-manager/pkg/templates"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/api"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
 	"sync"
 )
 
