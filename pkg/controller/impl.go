@@ -170,6 +170,7 @@ func (this *impl) ListRules(limit, offset int) (typedRules []model.TypedRule, co
 	}
 	typedRules = []model.TypedRule{}
 	for _, rule := range rules {
+		rule := rule
 		typed, err := rule.Type()
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
