@@ -36,6 +36,8 @@ type DB interface {
 	FindDeviceTables(deviceId string) (tables []string, err error)
 	GetColumns(table string) (columns []string, err error)
 	Exec(query string, tx *sql.Tx) (result sql.Result, err error)
+	Lock() error
+	Unlock() error
 }
 
 var ErrNotFound = errors.New("not found")

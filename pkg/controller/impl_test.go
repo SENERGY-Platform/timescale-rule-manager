@@ -574,14 +574,17 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 	}
 	config.HandleEnvironmentVars(&conf)
 	t.Run("Setup DB", func(t *testing.T) {
-		db, err = database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.Debug, ctx, wg)
+		db, err = database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.PostgresLockKey, conf.Debug, ctx, wg)
 		if err != nil {
 			t.Fatal(err)
 		}
 	})
 
 	t.Run("Test Dependency Connection", func(t *testing.T) {
-		c, err = New(conf, db, permSearch, ctx, wg)
+		fatal := func(err error) {
+			t.Fatal(err)
+		}
+		c, err = New(conf, db, permSearch, fatal, ctx, wg)
 		if err != nil {
 			t.Fatal(err.Error() + " Did you launch using test.sh?")
 		}

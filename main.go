@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -38,7 +39,16 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	wg, err := pkg.Start(ctx, conf)
+	fatal := func(err error) {
+		log.Println("Fatal shutdown requested!, Error: " + err.Error())
+		cancel()
+		go func() {
+			<-time.After(25 * time.Second)
+			panic("Components did not shutdown in time, failing hard!")
+		}()
+	}
+
+	wg, err := pkg.Start(fatal, ctx, conf)
 	if err != nil {
 		log.Fatal(err)
 	}

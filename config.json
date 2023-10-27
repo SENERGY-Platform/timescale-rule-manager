@@ -11,6 +11,7 @@
   "postgres_db": "postgres",
   "postgres_rule_schema": "rules",
   "postgres_rule_table": "rules",
+  "postgres_lock_key": 3812638179211989351,
   "permission_search_url": "http://query.permissions",
   "keycloak_url": "http://api.keycloak:8080/auth",
   "keycloak_client_id": "",

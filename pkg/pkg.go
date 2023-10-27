@@ -27,22 +27,21 @@ import (
 	"sync"
 )
 
-func Start(ctx context.Context, conf config.Config) (wg *sync.WaitGroup, err error) {
+func Start(fatal func(error), ctx context.Context, conf config.Config) (wg *sync.WaitGroup, err error) {
 	wg = &sync.WaitGroup{}
 
 	_, err = templates.New(&conf)
 	if err != nil {
 		return wg, err
 	}
-
-	db, err := database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.Debug, ctx, wg)
+	db, err := database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.PostgresLockKey, conf.Debug, ctx, wg)
 	if err != nil {
 		return wg, err
 	}
 
 	permissionSearch := client.NewClient(conf.PermissionSearchUrl)
 
-	control, err := controller.New(conf, db, permissionSearch, ctx, wg)
+	control, err := controller.New(conf, db, permissionSearch, fatal, ctx, wg)
 	if err != nil {
 		return wg, err
 	}

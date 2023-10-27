@@ -44,14 +44,16 @@ type impl struct {
 	kafkaTopicPermissionUpdates string
 	deviceIdPrefix              string
 	serviceIdPrefix             string
+	fatal                       func(error)
+	mux                         sync.Mutex
 }
 
-func New(c config.Config, db database.DB, permissionSearch perm.Client, ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
+func New(c config.Config, db database.DB, permissionSearch perm.Client, fatal func(error), ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
 	oidClient, err := security.NewClient(c.KeycloakUrl, c.KeycloakClientId, c.KeycloakClientSecret)
 	if err != nil {
 		return nil, err
 	}
-	controller := &impl{db: db, permissionSearch: permissionSearch, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix}
+	controller := &impl{db: db, permissionSearch: permissionSearch, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal}
 	err = controller.setupKafka(c, ctx, wg)
 	if err != nil {
 		return nil, err
@@ -112,6 +114,17 @@ func (this *impl) UpdateRule(rule *model.Rule) (code int, err error) {
 	return http.StatusOK, nil
 }
 func (this *impl) DeleteRule(id string) (code int, err error) {
+	err = this.lock()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	defer func() {
+		err := this.unlock()
+		if err != nil {
+			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
+			this.fatal(err)
+		}
+	}()
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
 	if err != nil {
@@ -184,6 +197,17 @@ var exportTableMatch = regexp.MustCompile("userid:(.{22})_export:(.{22}).*")
 var deviceTableMatch = regexp.MustCompile("device:(.{22})_service:(.{22}).*")
 
 func (this *impl) ApplyAllRulesForTable(table string, useDeleteTemplateInstead bool) (code int, err error) {
+	err = this.lock()
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+	defer func() {
+		err := this.unlock()
+		if err != nil {
+			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
+			this.fatal(err)
+		}
+	}()
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
 	_, code, err = this.applyRulesForTable(table, useDeleteTemplateInstead, nil, tx)
@@ -333,6 +357,17 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 }
 
 func (this *impl) ApplyAllRules() error {
+	err := this.lock()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err := this.unlock()
+		if err != nil {
+			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
+			this.fatal(err)
+		}
+	}()
 	limit := 1000
 	offset := 0
 	tx, cancel, err := this.db.GetTx()
@@ -378,6 +413,18 @@ func (this *impl) ApplyAllRules() error {
 }
 
 func (this *impl) runRule(rule *model.Rule) {
+	err := this.lock()
+	if err != nil {
+		log.Println("ERROR: ", err)
+		return
+	}
+	defer func() {
+		err := this.unlock()
+		if err != nil {
+			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
+			this.fatal(err)
+		}
+	}()
 	rule.Errors = []string{}
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
@@ -452,6 +499,16 @@ func (this *impl) saveRule(rule *model.Rule) error {
 		return err
 	}
 	return nil
+}
+
+func (this *impl) lock() error {
+	this.mux.Lock()
+	return this.db.Lock()
+}
+
+func (this *impl) unlock() error {
+	this.mux.Unlock()
+	return this.db.Unlock()
 }
 
 func execTempl(t *template.Template, value any) (string, error) {

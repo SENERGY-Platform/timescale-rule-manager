@@ -42,6 +42,7 @@ type Config struct {
 	PostgresDb         string `json:"postgres_db"`
 	PostgresRuleSchema string `json:"postgres_rule_schema"`
 	PostgresRuleTable  string `json:"postgres_rule_table"`
+	PostgresLockKey    int64  `json:"postgres_lock_key"`
 
 	PermissionSearchUrl string `json:"permission_search_url"`
 

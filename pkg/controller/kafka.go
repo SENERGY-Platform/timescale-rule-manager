@@ -46,6 +46,17 @@ func (this *impl) setupKafka(c config.Config, ctx context.Context, wg *sync.Wait
 }
 
 func (this *impl) kafkaMessageHandler(topic string, msg []byte, _ time.Time) error {
+	err := this.lock()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err := this.unlock()
+		if err != nil {
+			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
+			this.fatal(err)
+		}
+	}()
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
 	if err != nil {

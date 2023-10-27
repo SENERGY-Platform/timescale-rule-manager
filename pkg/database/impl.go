@@ -36,11 +36,12 @@ type impl struct {
 	sql        *sql.DB
 	ctx        context.Context
 	timeout    time.Duration
+	lockKey    int64
 	debug      bool
 }
 
 func New(postgresHost string, postgresPort int, postgresUser string, postgresPw string, postgresDb string,
-	postgresRuleSchema string, postgresRuleTable string, timeout string, debug bool, ctx context.Context, wg *sync.WaitGroup) (DB, error) {
+	postgresRuleSchema string, postgresRuleTable string, timeout string, lockKey int64, debug bool, ctx context.Context, wg *sync.WaitGroup) (DB, error) {
 	timeoutD, err := time.ParseDuration(timeout)
 	if err != nil {
 		return nil, err
@@ -66,7 +67,7 @@ func New(postgresHost string, postgresPort int, postgresUser string, postgresPw 
 		_ = db.Close()
 		return nil, err
 	}
-	i := &impl{sql: db, ctx: ctx, ruleSchema: postgresRuleSchema, ruleTable: postgresRuleTable, timeout: timeoutD, debug: debug}
+	i := &impl{sql: db, ctx: ctx, ruleSchema: postgresRuleSchema, ruleTable: postgresRuleTable, timeout: timeoutD, lockKey: lockKey, debug: debug}
 	return i, i.migrate()
 }
 
@@ -264,4 +265,14 @@ func (this *impl) Exec(query string, tx *sql.Tx) (sql.Result, error) {
 		log.Println("DEBUG: executed in " + time.Since(t).String() + ": " + query)
 	}
 	return r, err
+}
+
+func (this *impl) Lock() error {
+	_, err := this.sql.Exec(fmt.Sprintf("SELECT pg_advisory_lock(%v);", this.lockKey))
+	return err
+}
+
+func (this *impl) Unlock() error {
+	_, err := this.sql.Exec(fmt.Sprintf("SELECT pg_advisory_unlock(%v);", this.lockKey))
+	return err
 }
