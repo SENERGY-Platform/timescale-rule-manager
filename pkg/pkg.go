@@ -18,13 +18,15 @@ package pkg
 
 import (
 	"context"
+	"log"
+	"sync"
+
 	"github.com/SENERGY-Platform/permission-search/lib/client"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/api"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
-	"sync"
 )
 
 func Start(fatal func(error), ctx context.Context, conf config.Config) (wg *sync.WaitGroup, err error) {
@@ -32,7 +34,7 @@ func Start(fatal func(error), ctx context.Context, conf config.Config) (wg *sync
 
 	_, err = templates.New(&conf)
 	if err != nil {
-		return wg, err
+		log.Println("WARNING: Could not read templates: " + err.Error())
 	}
 	db, err := database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.PostgresLockKey, conf.Debug, ctx, wg)
 	if err != nil {
