@@ -21,6 +21,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
+	"net/http"
+	"regexp"
+	"strings"
+	"sync"
+	"text/template"
+
 	"github.com/SENERGY-Platform/models/go/models"
 	perm "github.com/SENERGY-Platform/permission-search/lib/client"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
@@ -29,11 +36,6 @@ import (
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/security"
 	"github.com/hashicorp/go-uuid"
 	"golang.org/x/exp/slices"
-	"log"
-	"net/http"
-	"regexp"
-	"sync"
-	"text/template"
 )
 
 type impl struct {
@@ -46,6 +48,7 @@ type impl struct {
 	serviceIdPrefix             string
 	fatal                       func(error)
 	mux                         sync.Mutex
+	debug                       bool
 }
 
 func New(c config.Config, db database.DB, permissionSearch perm.Client, fatal func(error), ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
@@ -53,7 +56,7 @@ func New(c config.Config, db database.DB, permissionSearch perm.Client, fatal fu
 	if err != nil {
 		return nil, err
 	}
-	controller := &impl{db: db, permissionSearch: permissionSearch, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal}
+	controller := &impl{db: db, permissionSearch: permissionSearch, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal, debug: c.Debug}
 	err = controller.setupKafka(c, ctx, wg)
 	if err != nil {
 		return nil, err
@@ -222,10 +225,17 @@ func (this *impl) ApplyAllRulesForTable(table string, useDeleteTemplateInstead b
 }
 
 func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool, limitToRuleIds []string, tx *sql.Tx) (allRanOk bool, code int, err error) {
+	if limitToRuleIds != nil {
+		this.logDebug("applying rules to table " + table + " limited to rule ids " + strings.Join(limitToRuleIds, ", "))
+	} else {
+		this.logDebug("applying rules to table " + table + " unlimited to any rule ids")
+	}
+
 	allRanOk = true
 	tableInfo := model.TableInfo{Table: table, Roles: []string{}}
 	matches := exportTableMatch.FindAllStringSubmatch(table, -1)
 	if matches != nil && len(matches[0]) == 3 { // is export table
+		this.logDebug(table + " is an export table")
 		tableInfo.ShortUserId = matches[0][1]
 		longUserId, err := models.LongId(tableInfo.ShortUserId)
 		if err != nil {
@@ -240,6 +250,7 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 	} else {
 		matches = deviceTableMatch.FindAllStringSubmatch(table, -1)
 		if matches != nil && len(matches[0]) == 3 { // is device-service table
+			this.logDebug(table + " is a device table")
 			tableInfo.ShortDeviceId = matches[0][1]
 			longDeviceId, err := models.LongId(tableInfo.ShortDeviceId)
 			if err != nil {
@@ -292,6 +303,7 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 		}
 	}
 
+	this.logDebug(table + " belongs to users " + strings.Join(tableInfo.UserIds, ", ") + " and roles " + strings.Join(tableInfo.Roles, ", "))
 	rules, err := this.db.FindMatchingRulesWithOwnerInfo(table, tableInfo.UserIds, tableInfo.Roles, limitToRuleIds, tx)
 	if err != nil {
 		return false, http.StatusInternalServerError, err
@@ -305,6 +317,7 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 	}
 
 	for _, rule := range rules {
+		this.logDebug("applying rule " + rule.Id + " to table " + table)
 		t := rule.CommandTemplate
 		if useDeleteTemplateInstead {
 			t = rule.DeleteTemplate
@@ -413,11 +426,13 @@ func (this *impl) ApplyAllRules() error {
 }
 
 func (this *impl) runRule(rule *model.Rule) {
+	this.logDebug("running rule " + rule.Id)
 	err := this.lock()
 	if err != nil {
 		log.Println("ERROR: ", err)
 		return
 	}
+	this.logDebug("locked db for rule " + rule.Id)
 	defer func() {
 		err := this.unlock()
 		if err != nil {
@@ -448,6 +463,7 @@ func (this *impl) runRule(rule *model.Rule) {
 		rollbackAndSave(rule)
 		return
 	}
+	this.logDebug("for rule " + rule.Id + " found tables " + strings.Join(tables, ", "))
 
 	for _, table := range tables {
 		_, _, err := this.applyRulesForTable(table, false, []string{rule.Id}, tx)
@@ -468,6 +484,7 @@ func (this *impl) runRule(rule *model.Rule) {
 		}
 	}
 
+	this.logDebug("rule " + rule.Id + " finished run")
 	rule.CompletedRun = true
 	err = this.db.UpdateRule(rule, tx)
 	if err != nil {
@@ -480,6 +497,7 @@ func (this *impl) runRule(rule *model.Rule) {
 		log.Println("ERROR", err)
 		return
 	}
+	this.logDebug("rule " + rule.Id + " finished run, committed changes")
 
 	return
 }
@@ -509,6 +527,12 @@ func (this *impl) lock() error {
 func (this *impl) unlock() error {
 	this.mux.Unlock()
 	return this.db.Unlock()
+}
+
+func (this *impl) logDebug(s string) {
+	if this.debug {
+		log.Println("DEBUG: " + s)
+	}
 }
 
 func execTempl(t *template.Template, value any) (string, error) {
