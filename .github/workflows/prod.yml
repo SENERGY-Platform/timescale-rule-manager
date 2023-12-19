@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
 
 jobs:
@@ -33,6 +35,12 @@ jobs:
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          release_branches: ".*"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
@@ -43,5 +51,9 @@ jobs:
           tags: |
             smartenergyplatform/timescale-rule-manager:prod
             ghcr.io/senergy-platform/timescale-rule-manager:prod
+            smartenergyplatform/timescale-rule-manager:${{ steps.tag_version.outputs.new_tag }}
+            ghcr.io/senergy-platform/timescale-rule-manager:${{ steps.tag_version.outputs.new_tag }}
+            smartenergyplatform/timescale-rule-manager:latest
+            ghcr.io/senergy-platform/timescale-rule-manager:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
