@@ -1,7 +1,7 @@
 github.com/SENERGY-Platform/models/go v0.0.0-20240627082833-157bd627a94f h1:nFZkMoKp6RtsbYijj071sVQ3uZqloDILMWCIDaInUSI=
 github.com/SENERGY-Platform/models/go v0.0.0-20240627082833-157bd627a94f/go.mod h1:bCREPNRN4P8oxLgpC3/ZKK4jXSy4MSPXoiomhohE+aw=
-github.com/SENERGY-Platform/permission-search v0.0.14 h1:RgV63ZuxaqUFjDTWdg5TBavGAI3BHqLnzh9fR3HuRrE=
-github.com/SENERGY-Platform/permission-search v0.0.14/go.mod h1:NlLdAJ0ezJC1KSOf8hzFt9mT0/qWbfN9yFyEh4zM/78=
+github.com/SENERGY-Platform/permission-search v0.0.16 h1:MhKNr9Fnwcf50AguaSb8697ScD0iNw/Tkk1L1ccZnP0=
+github.com/SENERGY-Platform/permission-search v0.0.16/go.mod h1:b2ckm6kM+XuDBZxx+cdv6YbM6SRk2EJi7Ny5ffTWhfc=
 github.com/Shopify/sarama v1.38.1 h1:lqqPUPQZ7zPqYlWpTh+LQ9bhYNu2xJL6k1SJN4WVe2A=
 github.com/Shopify/sarama v1.38.1/go.mod h1:iwv9a67Ha8VNa+TifujYoWGxWnu2kNVAQdSdZ4X2o5g=
 github.com/Shopify/toxiproxy/v2 v2.5.0 h1:i4LPT+qrSlKNtQf5QliVjdP08GyAH8+BUIc9gT0eahc=

@@ -6,7 +6,7 @@ toolchain go1.22.0
 
 require (
 	github.com/SENERGY-Platform/models/go v0.0.0-20240627082833-157bd627a94f
-	github.com/SENERGY-Platform/permission-search v0.0.14
+	github.com/SENERGY-Platform/permission-search v0.0.16
 	github.com/Shopify/sarama v1.38.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/hashicorp/go-uuid v1.0.3
