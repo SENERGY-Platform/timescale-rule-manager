@@ -37,8 +37,8 @@ type Config struct {
 
 	PostgresHost       string `json:"postgres_host"`
 	PostgresPort       int    `json:"postgres_port"`
-	PostgresUser       string `json:"postgres_user"`
-	PostgresPw         string `json:"postgres_pw"`
+	PostgresUser       string `json:"postgres_user" config:"secret"`
+	PostgresPw         string `json:"postgres_pw" config:"secret"`
 	PostgresDb         string `json:"postgres_db"`
 	PostgresRuleSchema string `json:"postgres_rule_schema"`
 	PostgresRuleTable  string `json:"postgres_rule_table"`
@@ -97,10 +97,13 @@ func HandleEnvironmentVars(config *Config) {
 	configType := configValue.Type()
 	for index := 0; index < configType.NumField(); index++ {
 		fieldName := configType.Field(index).Name
+		fieldConfig := configType.Field(index).Tag.Get("config")
 		envName := fieldNameToEnvName(fieldName)
 		envValue := os.Getenv(envName)
 		if envValue != "" {
-			log.Println("use environment variable: ", envName, " = ", envValue)
+			if !strings.Contains(fieldConfig, "secret") {
+				log.Println("use environment variable: ", envName, " = ", envValue)
+			}
 			if configValue.FieldByName(fieldName).Kind() == reflect.Int64 {
 				i, _ := strconv.ParseInt(envValue, 10, 64)
 				configValue.FieldByName(fieldName).SetInt(i)
