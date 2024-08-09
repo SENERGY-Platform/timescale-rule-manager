@@ -51,7 +51,7 @@ type impl struct {
 	fatal                       func(error)
 	mux                         sync.Mutex
 	debug                       bool
-	debugSlowMuxLock            time.Duration
+	slowMuxLock                 time.Duration
 }
 
 func New(c config.Config, db database.DB, permissionSearch perm.Client, fatal func(error), ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
@@ -59,14 +59,14 @@ func New(c config.Config, db database.DB, permissionSearch perm.Client, fatal fu
 	if err != nil {
 		return nil, err
 	}
-	debugSlowMuxLock := 0 * time.Nanosecond
-	if c.Debug && len(c.DebugSlowMuxLock) > 0 {
-		debugSlowMuxLock, err = time.ParseDuration(c.DebugSlowMuxLock)
+	slowMuxLock := 0 * time.Nanosecond
+	if len(c.SlowMuxLock) > 0 {
+		slowMuxLock, err = time.ParseDuration(c.SlowMuxLock)
 		if err != nil {
 			return nil, err
 		}
 	}
-	controller := &impl{db: db, permissionSearch: permissionSearch, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal, debug: c.Debug, debugSlowMuxLock: debugSlowMuxLock}
+	controller := &impl{db: db, permissionSearch: permissionSearch, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal, debug: c.Debug, slowMuxLock: slowMuxLock}
 	err = controller.setupKafka(c, ctx, wg)
 	if err != nil {
 		return nil, err
@@ -537,7 +537,7 @@ func (this *impl) saveRule(rule *model.Rule) error {
 }
 
 func (this *impl) lock() error {
-	time.Sleep(this.debugSlowMuxLock)
+	time.Sleep(this.slowMuxLock)
 	this.mux.Lock()
 	this.logDebug("mux locked\n" + string(debug.Stack()))
 	return this.db.Lock()

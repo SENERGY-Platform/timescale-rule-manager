@@ -22,5 +22,5 @@
   "timeout": "600s",
   "template_dir": "/root/templates",
   "debug": false,
-  "debug_slow_mux_lock": ""
+  "slow_mux_lock": "200ms"
 }
