@@ -528,11 +528,13 @@ func (this *impl) saveRule(rule *model.Rule) error {
 
 func (this *impl) lock() error {
 	this.mux.Lock()
+	this.logDebug("mux locked")
 	return this.db.Lock()
 }
 
 func (this *impl) unlock() error {
 	this.mux.Unlock()
+	this.logDebug("mux unlocked")
 	return this.db.Unlock()
 }
 
