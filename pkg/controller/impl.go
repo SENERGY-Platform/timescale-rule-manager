@@ -536,7 +536,7 @@ func (this *impl) lock() error {
 func (this *impl) unlock() error {
 	this.mux.Unlock()
 	this.logDebug("mux unlocked")
-	this.db.Unlock()
+	return this.db.Unlock()
 }
 
 func (this *impl) logDebug(s string) {
