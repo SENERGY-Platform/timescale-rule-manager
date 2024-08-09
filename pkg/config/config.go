@@ -57,6 +57,7 @@ type Config struct {
 	Timeout             string `json:"timeout"`
 	TemplateDir         string `json:"template_dir"`
 	Debug               bool   `json:"debug"`
+	DebugSlowMuxLock    string `json:"debug_slow_mux_log"`
 }
 
 // loads config from json in location and used environment variables (e.g ZookeeperUrl --> ZOOKEEPER_URL)

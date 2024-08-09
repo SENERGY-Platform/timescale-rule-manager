@@ -21,5 +21,6 @@
   "apply_rules_at_startup": false,
   "timeout": "600s",
   "template_dir": "/root/templates",
-  "debug": false
+  "debug": false,
+  "debug_slow_mux_log": ""
 }
