@@ -24,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"text/template"
@@ -528,14 +529,14 @@ func (this *impl) saveRule(rule *model.Rule) error {
 
 func (this *impl) lock() error {
 	this.mux.Lock()
-	this.logDebug("mux locked")
+	this.logDebug("mux locked\n" + string(debug.Stack()))
 	return this.db.Lock()
 }
 
 func (this *impl) unlock() error {
 	this.mux.Unlock()
 	this.logDebug("mux unlocked")
-	return this.db.Unlock()
+	this.db.Unlock()
 }
 
 func (this *impl) logDebug(s string) {
