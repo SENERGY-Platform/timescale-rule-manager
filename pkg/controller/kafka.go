@@ -50,12 +50,14 @@ func (this *impl) kafkaMessageHandler(topic string, msg []byte, _ time.Time) err
 	if err != nil {
 		return err
 	}
+	this.logDebug("locked db for kafkaMessageHandler on topic " + topic + " with message " + string(msg))
 	defer func() {
 		err := this.unlock()
 		if err != nil {
 			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
 			this.fatal(err)
 		}
+		this.logDebug("unlocked db for kafkaMessageHandler on topic " + topic)
 	}()
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()

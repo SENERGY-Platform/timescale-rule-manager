@@ -121,12 +121,14 @@ func (this *impl) DeleteRule(id string) (code int, err error) {
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
+	this.logDebug("locked db for DeleteRule " + id)
 	defer func() {
 		err := this.unlock()
 		if err != nil {
 			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
 			this.fatal(err)
 		}
+		this.logDebug("unlocked db for DeleteRule " + id)
 	}()
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
@@ -204,12 +206,14 @@ func (this *impl) ApplyAllRulesForTable(table string, useDeleteTemplateInstead b
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
+	this.logDebug("locked db for ApplyAllRulesForTable " + table)
 	defer func() {
 		err := this.unlock()
 		if err != nil {
 			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
 			this.fatal(err)
 		}
+		this.logDebug("unlocked db for ApplyAllRulesForTable " + table)
 	}()
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
@@ -374,12 +378,14 @@ func (this *impl) ApplyAllRules() error {
 	if err != nil {
 		return err
 	}
+	this.logDebug("locked db for ApplyAllRules")
 	defer func() {
 		err := this.unlock()
 		if err != nil {
 			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
 			this.fatal(err)
 		}
+		this.logDebug("unlocked db for ApplyAllRules")
 	}()
 	limit := 1000
 	offset := 0
@@ -439,6 +445,7 @@ func (this *impl) runRule(rule *model.Rule) {
 			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
 			this.fatal(err)
 		}
+		this.logDebug("unlocked db for rule " + rule.Id)
 	}()
 	rule.Errors = []string{}
 	tx, cancel, err := this.db.GetTx()
