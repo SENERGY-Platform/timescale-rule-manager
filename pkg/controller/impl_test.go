@@ -154,14 +154,20 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 		t.Fatal(err)
 	}
 	userId := ""
+	userId2 := ""
 	for _, user := range users {
 		if user.Username == "testuser" {
 			userId = user.Id
-			break
+		}
+		if user.Username == "testuser2" {
+			userId2 = user.Id
 		}
 	}
 	if len(userId) == 0 {
 		t.Fatal("testuser does not exist")
+	}
+	if len(userId2) == 0 {
+		t.Fatal("testuser2 does not exist")
 	}
 	t.Run("Command & Delete Template", func(t *testing.T) {
 		// ec85317b-6b14-4f7d-9d45-70198735dccf <-> 7IUxe2sUT32dRXAZhzXczw
@@ -191,7 +197,7 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 		}
 		_, err, _ = permV2.SetPermission(perm.InternalAdminToken, "devices", "17f82c6c-f06f-49be-b113-3f25016a60bb", perm.ResourcePermissions{
 			UserPermissions: map[string]model2.PermissionsMap{
-				"unknown": {
+				userId2: {
 					Read:         true,
 					Write:        true,
 					Execute:      true,
@@ -276,7 +282,7 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(10 * time.Second) // rule logic applied async
+		time.Sleep(2 * time.Second) // rule logic applied async
 		t.Run("Rule template executed for table correctly", func(t *testing.T) {
 			columns, err := db.GetColumns("device:7IUxe2sUT32dRXAZhzXczw_service:F_gsbPBvSb6xEz8lAWpguw_ld")
 			if err != nil {

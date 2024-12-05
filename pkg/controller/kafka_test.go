@@ -40,14 +40,20 @@ func TestKafkaUpdateBehaviour(t *testing.T) {
 		t.Fatal(err)
 	}
 	userId := ""
+	userId2 := ""
 	for _, user := range users {
 		if user.Username == "testuser" {
 			userId = user.Id
-			break
+		}
+		if user.Username == "testuser2" {
+			userId2 = user.Id
 		}
 	}
 	if len(userId) == 0 {
 		t.Fatal("testuser does not exist")
+	}
+	if len(userId2) == 0 {
+		t.Fatal("testuser2 does not exist")
 	}
 	shortUserId, err := models.ShortenId(userId)
 	if err != nil {
@@ -60,7 +66,7 @@ func TestKafkaUpdateBehaviour(t *testing.T) {
 
 		_, err, _ = permV2.SetPermission(perm.InternalAdminToken, "devices", "7042f576-2d28-f7ba-957e-c7f56dc1c24f", perm.ResourcePermissions{
 			UserPermissions: map[string]model2.PermissionsMap{
-				"unknown": {
+				userId2: {
 					Read:         true,
 					Write:        true,
 					Execute:      true,
@@ -83,7 +89,7 @@ func TestKafkaUpdateBehaviour(t *testing.T) {
 
 		_, err, _ = permV2.SetPermission(perm.InternalAdminToken, "devices", "983adc6c-66e9-42eb-8396-1f425118f7dd", perm.ResourcePermissions{
 			UserPermissions: map[string]model2.PermissionsMap{
-				"unknown": {
+				userId2: {
 					Read:         true,
 					Write:        true,
 					Execute:      true,

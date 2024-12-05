@@ -465,6 +465,7 @@ func (this *impl) runRule(rule *model.Rule) {
 		return
 	}
 	rollbackAndSave := func(rule *model.Rule) {
+		log.Println("rolling back rule "+rule.Id, rule.Errors)
 		err = tx.Rollback()
 		if err != nil {
 			log.Println("ERROR", err)
