@@ -19,7 +19,8 @@ package controller
 import (
 	"encoding/json"
 	"github.com/SENERGY-Platform/models/go/models"
-	perm_model "github.com/SENERGY-Platform/permission-search/lib/model"
+	perm "github.com/SENERGY-Platform/permissions-v2/pkg/client"
+	model2 "github.com/SENERGY-Platform/permissions-v2/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
 	"testing"
@@ -27,7 +28,7 @@ import (
 )
 
 func TestKafkaUpdateBehaviour(t *testing.T) {
-	_, _, conf, c, db, permSearch, cleanup := setup(t)
+	_, _, conf, c, db, permV2, cleanup := setup(t)
 	_, err := templates.New(&conf)
 	if err != nil {
 		t.Fatal(err)
@@ -57,31 +58,51 @@ func TestKafkaUpdateBehaviour(t *testing.T) {
 		// 7042f576-2d28-f7ba-957e-c7f56dc1c24f <-> cEL1di0o97qVfsf1bcHCTw
 		// 983adc6c-66e9-42eb-8396-1f425118f7dd <-> mDrcbGbpQuuDlh9CURj33Q
 
-		permSearch.SetRights("devices", "7042f576-2d28-f7ba-957e-c7f56dc1c24f", perm_model.ResourceRights{
-			ResourceRightsBase: perm_model.ResourceRightsBase{
-				GroupRights: map[string]perm_model.Right{
-					"admin": {
-						Read:         true,
-						Write:        true,
-						Execute:      true,
-						Administrate: true,
-					},
+		_, err, _ = permV2.SetPermission(perm.InternalAdminToken, "devices", "7042f576-2d28-f7ba-957e-c7f56dc1c24f", perm.ResourcePermissions{
+			UserPermissions: map[string]model2.PermissionsMap{
+				"unknown": {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
+				},
+			},
+			GroupPermissions: map[string]model2.PermissionsMap{},
+			RolePermissions: map[string]model2.PermissionsMap{
+				"admin": {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
 				},
 			},
 		})
-		permSearch.SetRights("devices", "983adc6c-66e9-42eb-8396-1f425118f7dd", perm_model.ResourceRights{
-			ResourceRightsBase: perm_model.ResourceRightsBase{
-				UserRights: map[string]perm_model.Right{},
-				GroupRights: map[string]perm_model.Right{
-					"admin": {
-						Read:         true,
-						Write:        true,
-						Execute:      true,
-						Administrate: true,
-					},
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err, _ = permV2.SetPermission(perm.InternalAdminToken, "devices", "983adc6c-66e9-42eb-8396-1f425118f7dd", perm.ResourcePermissions{
+			UserPermissions: map[string]model2.PermissionsMap{
+				"unknown": {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
+				},
+			},
+			GroupPermissions: map[string]model2.PermissionsMap{},
+			RolePermissions: map[string]model2.PermissionsMap{
+				"admin": {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
 				},
 			},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		tx, cancel, err := db.GetTx()
 		defer cancel()
 		if err != nil {
@@ -147,31 +168,33 @@ func TestKafkaUpdateBehaviour(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		permSearch.SetRights("devices", "7042f576-2d28-f7ba-957e-c7f56dc1c24f", perm_model.ResourceRights{
-			ResourceRightsBase: perm_model.ResourceRightsBase{
-				UserRights: map[string]perm_model.Right{
-					userId: {
-						Read:         true,
-						Write:        true,
-						Execute:      true,
-						Administrate: true,
-					},
+		_, err, _ = permV2.SetPermission(perm.InternalAdminToken, "devices", "7042f576-2d28-f7ba-957e-c7f56dc1c24f", perm.ResourcePermissions{
+			UserPermissions: map[string]model2.PermissionsMap{
+				userId: {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
 				},
-				GroupRights: map[string]perm_model.Right{
-					"admin": {
-						Read:         true,
-						Write:        true,
-						Execute:      true,
-						Administrate: true,
-					},
+			},
+			GroupPermissions: map[string]model2.PermissionsMap{},
+			RolePermissions: map[string]model2.PermissionsMap{
+				"admin": {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
 				},
 			},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		updateMsg := model.PermissionSearchDoneMessage{
 			ResourceKind: "devices",
 			ResourceId:   "7042f576-2d28-f7ba-957e-c7f56dc1c24f",
-			Handler:      model.DoneMessageHandlerPermissionSearch,
+			Handler:      model.DoneMessageHandlerDeviceRepo,
 		}
 		b, err := json.Marshal(updateMsg)
 		if err != nil {

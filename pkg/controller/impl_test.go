@@ -20,8 +20,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/SENERGY-Platform/models/go/models"
-	perm "github.com/SENERGY-Platform/permission-search/lib/client"
-	perm_model "github.com/SENERGY-Platform/permission-search/lib/model"
+	perm "github.com/SENERGY-Platform/permissions-v2/pkg/client"
+	permCtrl "github.com/SENERGY-Platform/permissions-v2/pkg/controller"
+	model2 "github.com/SENERGY-Platform/permissions-v2/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
@@ -145,7 +146,7 @@ func TestIntegration(t *testing.T) {
 }
 
 func TestRuleLogicForDeviceTables(t *testing.T) {
-	_, _, _, c, db, permSearch, cleanup := setup(t)
+	_, _, _, c, db, permV2, cleanup := setup(t)
 	i := c.(*impl)
 	defer cleanup()
 	users, err := i.oidClient.GetUsers()
@@ -166,39 +167,51 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 		// ec85317b-6b14-4f7d-9d45-70198735dccf <-> 7IUxe2sUT32dRXAZhzXczw
 		// 17f82c6c-f06f-49be-b113-3f25016a60bb <-> F_gsbPBvSb6xEz8lAWpguw
 		// d6e5a728-c8c3-4473-b368-f514c11d48df <-> 1uWnKMjDRHOzaPUUwR1I3w
-		permSearch.SetRights("devices", "ec85317b-6b14-4f7d-9d45-70198735dccf", perm_model.ResourceRights{
-			ResourceRightsBase: perm_model.ResourceRightsBase{
-				UserRights: map[string]perm_model.Right{
-					userId: {
-						Read:         true,
-						Write:        true,
-						Execute:      true,
-						Administrate: true,
-					},
+		_, err, _ = permV2.SetPermission(perm.InternalAdminToken, "devices", "ec85317b-6b14-4f7d-9d45-70198735dccf", perm.ResourcePermissions{
+			UserPermissions: map[string]model2.PermissionsMap{
+				userId: {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
 				},
-				GroupRights: map[string]perm_model.Right{
-					"admin": {
-						Read:         true,
-						Write:        true,
-						Execute:      true,
-						Administrate: true,
-					},
+			},
+			GroupPermissions: map[string]model2.PermissionsMap{},
+			RolePermissions: map[string]model2.PermissionsMap{
+				"admin": {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
 				},
 			},
 		})
-		permSearch.SetRights("devices", "17f82c6c-f06f-49be-b113-3f25016a60bb", perm_model.ResourceRights{
-			ResourceRightsBase: perm_model.ResourceRightsBase{
-				UserRights: map[string]perm_model.Right{},
-				GroupRights: map[string]perm_model.Right{
-					"admin": {
-						Read:         true,
-						Write:        true,
-						Execute:      true,
-						Administrate: true,
-					},
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err, _ = permV2.SetPermission(perm.InternalAdminToken, "devices", "17f82c6c-f06f-49be-b113-3f25016a60bb", perm.ResourcePermissions{
+			UserPermissions: map[string]model2.PermissionsMap{
+				"unknown": {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
+				},
+			},
+			GroupPermissions: map[string]model2.PermissionsMap{},
+			RolePermissions: map[string]model2.PermissionsMap{
+				"admin": {
+					Read:         true,
+					Write:        true,
+					Execute:      true,
+					Administrate: true,
 				},
 			},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		tx, cancel, err := db.GetTx()
 		defer cancel()
 		if err != nil {
@@ -263,7 +276,7 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(2 * time.Second) // rule logic applied async
+		time.Sleep(10 * time.Second) // rule logic applied async
 		t.Run("Rule template executed for table correctly", func(t *testing.T) {
 			columns, err := db.GetColumns("device:7IUxe2sUT32dRXAZhzXczw_service:F_gsbPBvSb6xEz8lAWpguw_ld")
 			if err != nil {
@@ -436,7 +449,7 @@ func TestRuleLogicForExportTables(t *testing.T) {
 }
 
 func TestUpdateErrorHandling(t *testing.T) {
-	_, _, _, c, db, permSearch, cleanup := setup(t)
+	_, _, _, c, db, permV2, cleanup := setup(t)
 	i := c.(*impl)
 	defer cleanup()
 	users, err := i.oidClient.GetUsers()
@@ -476,18 +489,21 @@ func TestUpdateErrorHandling(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	permSearch.SetRights("devices", "ec85317b-6b14-4f7d-9d45-70198735dccf", perm_model.ResourceRights{
-		ResourceRightsBase: perm_model.ResourceRightsBase{
-			UserRights: map[string]perm_model.Right{
-				userId: {
-					Read:         true,
-					Write:        true,
-					Execute:      true,
-					Administrate: true,
-				},
+	_, err, _ = permV2.SetPermission(perm.InternalAdminToken, "devices", "ec85317b-6b14-4f7d-9d45-70198735dccf", perm.ResourcePermissions{
+		UserPermissions: map[string]model2.PermissionsMap{
+			userId: {
+				Read:         true,
+				Write:        true,
+				Execute:      true,
+				Administrate: true,
 			},
 		},
+		GroupPermissions: map[string]model2.PermissionsMap{},
+		RolePermissions:  map[string]model2.PermissionsMap{},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	tx, cancel, err := db.GetTx()
 	defer cancel()
 	if err != nil {
@@ -547,15 +563,24 @@ func TestUpdateErrorHandling(t *testing.T) {
 	}
 }
 
-func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.Config, c Controller, db database.DB, permSearch *perm.TestClient, cleanup func()) {
+func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.Config, c Controller, db database.DB, permV2 *permCtrl.Controller, cleanup func()) {
 	ctx = context.Background()
 	wg = &sync.WaitGroup{}
-	permSearch = perm.NewTestClient()
 	var err error
+	permV2, err = perm.NewTestClient(ctx)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	_, err, _ = permV2.SetTopic(perm.InternalAdminToken, perm.Topic{Id: "devices", PublishToKafkaTopic: "devices"})
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 	conf = config.Config{
 		KafkaBootstrap:              "localhost:9092",
 		KafkaTopicTableUpdates:      "timescale-table-updates",
-		KafkaTopicPermissionUpdates: "permissions_done",
+		KafkaTopicPermissionUpdates: "device_repository_done",
 		KafkaOffset:                 "earliest",
 		KafkaGroupId:                "timescale-rule-manager",
 		PostgresHost:                "localhost",
@@ -584,12 +609,12 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		fatal := func(err error) {
 			t.Fatal(err)
 		}
-		c, err = New(conf, db, permSearch, fatal, ctx, wg)
+		c, err = New(conf, db, permV2, fatal, ctx, wg)
 		if err != nil {
 			t.Fatal(err.Error() + " Did you launch using test.sh?")
 		}
 	})
-	return ctx, wg, conf, c, db, permSearch, func() {
+	return ctx, wg, conf, c, db, permV2, func() {
 		tx, cancel, err := db.GetTx()
 		if err != nil {
 			t.Fatal(err)

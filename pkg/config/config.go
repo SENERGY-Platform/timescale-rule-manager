@@ -44,7 +44,7 @@ type Config struct {
 	PostgresRuleTable  string `json:"postgres_rule_table"`
 	PostgresLockKey    int64  `json:"postgres_lock_key"`
 
-	PermissionSearchUrl string `json:"permission_search_url"`
+	PermissionsV2Url string `json:"permissions_v2_url"`
 
 	KeycloakUrl          string `json:"keycloak_url"`
 	KeycloakClientId     string `json:"keycloak_client_id"`

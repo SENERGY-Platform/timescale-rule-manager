@@ -28,7 +28,7 @@ type TableEditMessage struct {
 
 type DoneMessageHandler = string
 
-const DoneMessageHandlerPermissionSearch = "github.com/SENERGY-Platform/permission-search"
+const DoneMessageHandlerDeviceRepo = "github.com/SENERGY-Platform/device-repository"
 
 type PermissionSearchDoneMessage struct {
 	ResourceKind string             `json:"resource_kind"`

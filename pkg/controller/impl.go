@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/SENERGY-Platform/models/go/models"
-	perm "github.com/SENERGY-Platform/permission-search/lib/client"
+	perm "github.com/SENERGY-Platform/permissions-v2/pkg/client"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
@@ -42,7 +42,7 @@ import (
 
 type impl struct {
 	db                          database.DB
-	permissionSearch            perm.Client
+	permv2                      perm.Client
 	oidClient                   *security.Client
 	kafkaTopicTableUpdates      string
 	kafkaTopicPermissionUpdates string
@@ -54,7 +54,7 @@ type impl struct {
 	slowMuxLock                 time.Duration
 }
 
-func New(c config.Config, db database.DB, permissionSearch perm.Client, fatal func(error), ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
+func New(c config.Config, db database.DB, permv2 perm.Client, fatal func(error), ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
 	oidClient, err := security.NewClient(c.KeycloakUrl, c.KeycloakClientId, c.KeycloakClientSecret)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func New(c config.Config, db database.DB, permissionSearch perm.Client, fatal fu
 			return nil, err
 		}
 	}
-	controller := &impl{db: db, permissionSearch: permissionSearch, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal, debug: c.Debug, slowMuxLock: slowMuxLock}
+	controller := &impl{db: db, permv2: permv2, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal, debug: c.Debug, slowMuxLock: slowMuxLock}
 	err = controller.setupKafka(c, ctx, wg)
 	if err != nil {
 		return nil, err
@@ -282,18 +282,18 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 			if err != nil {
 				return false, http.StatusInternalServerError, err
 			}
-			rights, err := this.permissionSearch.GetRights(token.JwtToken(), "devices", tableInfo.DeviceId)
+			resource, err, _ := this.permv2.GetResource(token.JwtToken(), "devices", tableInfo.DeviceId)
 			if err != nil {
 				err = errors.New(err.Error() + tableInfo.DeviceId)
 				return false, http.StatusInternalServerError, err
 			}
 			tableInfo.Roles = []string{}
-			for group, groupRights := range rights.GroupRights { // groups are roles...
+			for group, groupRights := range resource.RolePermissions { // groups are roles...
 				if groupRights.Execute {
 					tableInfo.Roles = append(tableInfo.Roles, group)
 				}
 			}
-			for userId, userRights := range rights.UserRights {
+			for userId, userRights := range resource.UserPermissions {
 				if userRights.Execute {
 					tableInfo.UserIds = append(tableInfo.UserIds, userId)
 				}

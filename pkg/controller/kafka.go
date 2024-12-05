@@ -71,7 +71,7 @@ func (this *impl) kafkaMessageHandler(topic string, msg []byte, _ time.Time) err
 		if err != nil {
 			return err
 		}
-		if message.Handler != model.DoneMessageHandlerPermissionSearch {
+		if message.Handler != model.DoneMessageHandlerDeviceRepo {
 			return nil
 		}
 		if message.ResourceKind != "devices" {

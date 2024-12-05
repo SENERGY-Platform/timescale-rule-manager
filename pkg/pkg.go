@@ -21,7 +21,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/SENERGY-Platform/permission-search/lib/client"
+	"github.com/SENERGY-Platform/permissions-v2/pkg/client"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/api"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
@@ -41,9 +41,9 @@ func Start(fatal func(error), ctx context.Context, conf config.Config) (wg *sync
 		return wg, err
 	}
 
-	permissionSearch := client.NewClient(conf.PermissionSearchUrl)
+	permV2 := client.New(conf.PermissionsV2Url)
 
-	control, err := controller.New(conf, db, permissionSearch, fatal, ctx, wg)
+	control, err := controller.New(conf, db, permV2, fatal, ctx, wg)
 	if err != nil {
 		return wg, err
 	}
