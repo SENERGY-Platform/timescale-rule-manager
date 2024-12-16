@@ -133,11 +133,7 @@ func (this *impl) DeleteRule(id string) (code int, err error) {
 	}
 	this.logDebug("locked db for DeleteRule " + id)
 	defer func() {
-		err := this.unlock()
-		if err != nil {
-			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
-			this.fatal(err)
-		}
+		this.unlock()
 		this.logDebug("unlocked db for DeleteRule " + id)
 	}()
 	tx, cancel, err := this.db.GetTx()
@@ -218,11 +214,7 @@ func (this *impl) ApplyAllRulesForTable(table string, useDeleteTemplateInstead b
 	}
 	this.logDebug("locked db for ApplyAllRulesForTable " + table)
 	defer func() {
-		err := this.unlock()
-		if err != nil {
-			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
-			this.fatal(err)
-		}
+		this.unlock()
 		this.logDebug("unlocked db for ApplyAllRulesForTable " + table)
 	}()
 	tx, cancel, err := this.db.GetTx()
@@ -390,11 +382,7 @@ func (this *impl) ApplyAllRules() error {
 	}
 	this.logDebug("locked db for ApplyAllRules")
 	defer func() {
-		err := this.unlock()
-		if err != nil {
-			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
-			this.fatal(err)
-		}
+		this.unlock()
 		this.logDebug("unlocked db for ApplyAllRules")
 	}()
 	limit := 1000
@@ -450,11 +438,7 @@ func (this *impl) runRule(rule *model.Rule) {
 	}
 	this.logDebug("locked db for rule " + rule.Id)
 	defer func() {
-		err := this.unlock()
-		if err != nil {
-			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
-			this.fatal(err)
-		}
+		this.unlock()
 		this.logDebug("unlocked db for rule " + rule.Id)
 	}()
 	rule.Errors = []string{}
@@ -540,7 +524,8 @@ func (this *impl) saveRule(rule *model.Rule) error {
 func (this *impl) lock() error {
 	time.Sleep(this.slowMuxLock)
 	this.mux.Lock()
-	this.logDebug("internal mux locked, attemtping db mux lock")
+	this.logDebug("internal mux locked, attempting db mux lock")
+	// until here
 	err := this.db.Lock()
 	if err != nil {
 		this.logDebug("db mux locked with error \n" + string(debug.Stack()))
@@ -550,10 +535,14 @@ func (this *impl) lock() error {
 	return err
 }
 
-func (this *impl) unlock() error {
+func (this *impl) unlock() {
+	err := this.db.Unlock()
+	if err != nil {
+		log.Println("ERROR unlocking db, panic will follow to avoid deadlock!")
+		panic(err)
+	}
 	this.mux.Unlock()
 	this.logDebug("mux unlocked")
-	return this.db.Unlock()
 }
 
 func (this *impl) logDebug(s string) {

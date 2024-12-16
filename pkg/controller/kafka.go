@@ -20,13 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/kafka"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"log"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/kafka"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 )
 
 func (this *impl) setupKafka(c config.Config, ctx context.Context, wg *sync.WaitGroup) error {
@@ -52,11 +53,7 @@ func (this *impl) kafkaMessageHandler(topic string, msg []byte, _ time.Time) err
 	}
 	this.logDebug("locked db for kafkaMessageHandler on topic " + topic + " with message " + string(msg))
 	defer func() {
-		err := this.unlock()
-		if err != nil {
-			log.Println("FATAL: Could not unlock postgresql. Exiting to avoid deadlock!")
-			this.fatal(err)
-		}
+		this.unlock()
 		this.logDebug("unlocked db for kafkaMessageHandler on topic " + topic + " with message " + string(msg))
 	}()
 	tx, cancel, err := this.db.GetTx()
