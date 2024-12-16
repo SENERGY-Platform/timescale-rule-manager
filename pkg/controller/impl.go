@@ -540,11 +540,13 @@ func (this *impl) saveRule(rule *model.Rule) error {
 func (this *impl) lock() error {
 	time.Sleep(this.slowMuxLock)
 	this.mux.Lock()
-	this.logDebug("mux locked\n" + string(debug.Stack()))
+	this.logDebug("internal mux locked, attemtping db mux lock")
 	err := this.db.Lock()
 	if err != nil {
+		this.logDebug("db mux locked with error \n" + string(debug.Stack()))
 		this.mux.Unlock()
 	}
+	this.logDebug("db mux locked\n" + string(debug.Stack()))
 	return err
 }
 
