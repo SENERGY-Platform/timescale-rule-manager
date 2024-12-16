@@ -541,7 +541,11 @@ func (this *impl) lock() error {
 	time.Sleep(this.slowMuxLock)
 	this.mux.Lock()
 	this.logDebug("mux locked\n" + string(debug.Stack()))
-	return this.db.Lock()
+	err := this.db.Lock()
+	if err != nil {
+		this.mux.Unlock()
+	}
+	return err
 }
 
 func (this *impl) unlock() error {
