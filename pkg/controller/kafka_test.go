@@ -28,7 +28,7 @@ import (
 )
 
 func TestKafkaUpdateBehaviour(t *testing.T) {
-	_, _, conf, c, db, permV2, cleanup := setup(t)
+	_, _, conf, c, db, permV2, _, cleanup := setup(t)
 	_, err := templates.New(&conf)
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestKafkaUpdateBehaviour(t *testing.T) {
 			  time_bucket(INTERVAL '1 day', time) AS time,
 			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
 			FROM "{{.Table}}"
-			GROUP BY time_bucket(INTERVAL '1 day', time)
+			GROUP BY 1
 			WITH NO DATA;
 			`,
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
@@ -252,7 +252,7 @@ func TestKafkaUpdateBehaviour(t *testing.T) {
 			  time_bucket(INTERVAL '1 day', time) AS time,
 			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
 			FROM "{{.Table}}"
-			GROUP BY time_bucket(INTERVAL '1 day', time)
+			GROUP BY 1
 			WITH NO DATA;`,
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 		}

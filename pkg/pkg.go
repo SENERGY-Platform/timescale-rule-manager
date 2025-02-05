@@ -21,6 +21,7 @@ import (
 	"log"
 	"sync"
 
+	deviceRepo "github.com/SENERGY-Platform/device-repository/lib/client"
 	"github.com/SENERGY-Platform/permissions-v2/pkg/client"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/api"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
@@ -43,7 +44,9 @@ func Start(fatal func(error), ctx context.Context, conf config.Config) (wg *sync
 
 	permV2 := client.New(conf.PermissionsV2Url)
 
-	control, err := controller.New(conf, db, permV2, fatal, ctx, wg)
+	deviceRepoClient := deviceRepo.NewClient(conf.DeviceRepoUrl, nil)
+
+	control, err := controller.New(conf, db, permV2, deviceRepoClient, fatal, ctx, wg)
 	if err != nil {
 		return wg, err
 	}

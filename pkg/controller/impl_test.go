@@ -19,6 +19,14 @@ package controller
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"sync"
+	"testing"
+	"time"
+
+	deviceRepo "github.com/SENERGY-Platform/device-repository/lib/client"
+	deviceRepoDB "github.com/SENERGY-Platform/device-repository/lib/database"
+	deviceRepoModel "github.com/SENERGY-Platform/device-repository/lib/model"
 	"github.com/SENERGY-Platform/models/go/models"
 	perm "github.com/SENERGY-Platform/permissions-v2/pkg/client"
 	permCtrl "github.com/SENERGY-Platform/permissions-v2/pkg/controller"
@@ -28,14 +36,10 @@ import (
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
 	"github.com/hashicorp/go-uuid"
-	"reflect"
-	"sync"
-	"testing"
-	"time"
 )
 
 func TestIntegration(t *testing.T) {
-	_, _, conf, c, _, _, cleanup := setup(t)
+	_, _, conf, c, _, _, _, cleanup := setup(t)
 	_, err := templates.New(&conf)
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +150,7 @@ func TestIntegration(t *testing.T) {
 }
 
 func TestRuleLogicForDeviceTables(t *testing.T) {
-	_, _, _, c, db, permV2, cleanup := setup(t)
+	_, _, _, c, db, permV2, deviceRepoDatabase, cleanup := setup(t)
 	i := c.(*impl)
 	defer cleanup()
 	users, err := i.oidClient.GetUsers()
@@ -189,6 +193,22 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 					Write:        true,
 					Execute:      true,
 					Administrate: true,
+				},
+			},
+		})
+		deviceRepoDatabase.SetDevice(context.Background(), deviceRepoModel.DeviceWithConnectionState{
+			Device: models.Device{
+				Id: "ec85317b-6b14-4f7d-9d45-70198735dccf",
+				Attributes: []models.Attribute{{
+					Key:   "Timezone",
+					Value: "Asia/Kathmandu",
+				}},
+			},
+		})
+		deviceRepoDatabase.SetRights("devices", "ec85317b-6b14-4f7d-9d45-70198735dccf", deviceRepoModel.ResourceRights{
+			GroupRights: map[string]deviceRepoModel.Right{
+				"admin": {
+					Read: true,
 				},
 			},
 		})
@@ -269,10 +289,10 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 			CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
 			WITH (timescaledb.continuous) AS
 			SELECT                            
-			  time_bucket(INTERVAL '1 day', time) AS time,
+			  time_bucket(INTERVAL '1 day', time, '{{.Timezone}}') AS time,
 			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
 			FROM "{{.Table}}"
-			GROUP BY time_bucket(INTERVAL '1 day', time)
+			GROUP BY 1
 			WITH NO DATA;`,
 
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
@@ -321,7 +341,7 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 }
 
 func TestRuleLogicForExportTables(t *testing.T) {
-	_, _, _, c, db, _, cleanup := setup(t)
+	_, _, _, c, db, _, _, cleanup := setup(t)
 	defer cleanup()
 	i := c.(*impl)
 	users, err := i.oidClient.GetUsers()
@@ -404,10 +424,10 @@ func TestRuleLogicForExportTables(t *testing.T) {
 			CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
 			WITH (timescaledb.continuous) AS
 			SELECT                            
-			  time_bucket(INTERVAL '1 day', time) AS time,
+			  time_bucket(INTERVAL '1 day', time, '{{.Timezone}}') AS time,
 			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
 			FROM "{{.Table}}"
-			GROUP BY time_bucket(INTERVAL '1 day', time)
+			GROUP BY 1
 			WITH NO DATA;`,
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 		}
@@ -455,7 +475,7 @@ func TestRuleLogicForExportTables(t *testing.T) {
 }
 
 func TestUpdateErrorHandling(t *testing.T) {
-	_, _, _, c, db, permV2, cleanup := setup(t)
+	_, _, _, c, db, permV2, _, cleanup := setup(t)
 	i := c.(*impl)
 	defer cleanup()
 	users, err := i.oidClient.GetUsers()
@@ -486,7 +506,7 @@ func TestUpdateErrorHandling(t *testing.T) {
 			  time_bucket(INTERVAL '1 day', time) AS time,
 			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
 			FROM "{{.Table}}"
-			GROUP BY time_bucket(INTERVAL '1 day', time);`,
+			GROUP BY 1;`,
 		DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 	}
 
@@ -562,14 +582,14 @@ func TestUpdateErrorHandling(t *testing.T) {
 			  time_bucket(INTERVAL '1 day', time) AS time,
 			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
 			FROM "{{.Table}}"
-			GROUP BY time_bucket(INTERVAL '1 day', time) WITH NO DATA;`
+			GROUP BY 1 WITH NO DATA;`
 	_, err = c.UpdateRule(typedRule.Rule)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.Config, c Controller, db database.DB, permV2 *permCtrl.Controller, cleanup func()) {
+func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.Config, c Controller, db database.DB, permV2 *permCtrl.Controller, deviceRepoDatabase deviceRepoDB.Database, cleanup func()) {
 	ctx = context.Background()
 	wg = &sync.WaitGroup{}
 	var err error
@@ -583,6 +603,12 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		t.Fatal(err)
 		return
 	}
+	deviceRepoClient, deviceRepoDatabase, err := deviceRepo.NewTestClient()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
 	conf = config.Config{
 		KafkaBootstrap:              "localhost:9092",
 		KafkaTopicTableUpdates:      "timescale-table-updates",
@@ -602,8 +628,10 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		ApplyRulesAtStartup:         false,
 		Timeout:                     "30s",
 		Debug:                       true,
+		DefaultTimezone:             "Europe/Berlin",
 	}
 	config.HandleEnvironmentVars(&conf)
+	templates.New(&conf)
 	t.Run("Setup DB", func(t *testing.T) {
 		db, err = database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.PostgresLockKey, conf.Debug, ctx, wg)
 		if err != nil {
@@ -615,12 +643,12 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		fatal := func(err error) {
 			t.Fatal(err)
 		}
-		c, err = New(conf, db, permV2, fatal, ctx, wg)
+		c, err = New(conf, db, permV2, deviceRepoClient, fatal, ctx, wg)
 		if err != nil {
 			t.Fatal(err.Error() + " Did you launch using test.sh?")
 		}
 	})
-	return ctx, wg, conf, c, db, permV2, func() {
+	return ctx, wg, conf, c, db, permV2, deviceRepoDatabase, func() {
 		tx, cancel, err := db.GetTx()
 		if err != nil {
 			t.Fatal(err)

@@ -22,5 +22,7 @@
   "timeout": "600s",
   "template_dir": "/root/templates",
   "debug": false,
-  "slow_mux_lock": "0ms"
+  "slow_mux_lock": "0ms",
+  "default_timezone": "Europe/Berlin",
+  "device_repo_url": "http://api.device-repository:8080"
 }

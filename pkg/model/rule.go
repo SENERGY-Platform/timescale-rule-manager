@@ -67,4 +67,5 @@ type TableInfo struct {
 	ExportId       string
 	ShortExportId  string
 	Columns        []string
+	Timezone       string
 }

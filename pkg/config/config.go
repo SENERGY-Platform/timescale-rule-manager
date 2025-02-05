@@ -58,6 +58,8 @@ type Config struct {
 	TemplateDir         string `json:"template_dir"`
 	Debug               bool   `json:"debug"`
 	SlowMuxLock         string `json:"slow_mux_lock"`
+	DefaultTimezone     string `json:"default_timezone"`
+	DeviceRepoUrl       string `json:"device_repo_url"`
 }
 
 // loads config from json in location and used environment variables (e.g ZookeeperUrl --> ZOOKEEPER_URL)

@@ -30,6 +30,8 @@ import (
 	"text/template"
 	"time"
 
+	deviceRepo "github.com/SENERGY-Platform/device-repository/lib/client"
+	deviceRepoModel "github.com/SENERGY-Platform/device-repository/lib/model"
 	"github.com/SENERGY-Platform/models/go/models"
 	perm "github.com/SENERGY-Platform/permissions-v2/pkg/client"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
@@ -52,9 +54,11 @@ type impl struct {
 	mux                         sync.Mutex
 	debug                       bool
 	slowMuxLock                 time.Duration
+	defaultTimezone             string
+	deviceRepoClient            deviceRepo.Interface
 }
 
-func New(c config.Config, db database.DB, permv2 perm.Client, fatal func(error), ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
+func New(c config.Config, db database.DB, permv2 perm.Client, deviceRepoClient deviceRepo.Interface, fatal func(error), ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
 	oidClient, err := security.NewClient(c.KeycloakUrl, c.KeycloakClientId, c.KeycloakClientSecret)
 	if err != nil {
 		return nil, err
@@ -66,7 +70,7 @@ func New(c config.Config, db database.DB, permv2 perm.Client, fatal func(error),
 			return nil, err
 		}
 	}
-	controller := &impl{db: db, permv2: permv2, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal, debug: c.Debug, slowMuxLock: slowMuxLock}
+	controller := &impl{db: db, permv2: permv2, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal, debug: c.Debug, slowMuxLock: slowMuxLock, defaultTimezone: c.DefaultTimezone, deviceRepoClient: deviceRepoClient}
 	err = controller.setupKafka(c, ctx, wg)
 	if err != nil {
 		return nil, err
@@ -238,7 +242,7 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 	}
 
 	allRanOk = true
-	tableInfo := model.TableInfo{Table: table, Roles: []string{}}
+	tableInfo := model.TableInfo{Table: table, Roles: []string{}, Timezone: this.defaultTimezone}
 	matches := exportTableMatch.FindAllStringSubmatch(table, -1)
 	if matches != nil && len(matches[0]) == 3 { // is export table
 		this.logDebug(table + " is an export table")
@@ -290,7 +294,21 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 					tableInfo.UserIds = append(tableInfo.UserIds, userId)
 				}
 			}
-
+			devices, err, _ := this.deviceRepoClient.ListDevices(perm.InternalAdminToken, deviceRepoModel.DeviceListOptions{Ids: []string{tableInfo.DeviceId}})
+			if err != nil {
+				err = errors.New(err.Error() + tableInfo.DeviceId)
+				return false, http.StatusInternalServerError, err
+			}
+			if len(devices) != 1 {
+				log.Println("WARN: Could not get device from device repo. Using default timezone")
+			} else {
+				for _, a := range devices[0].Attributes {
+					if strings.ToLower(a.Key) == "timezone" {
+						tableInfo.Timezone = a.Value
+						break
+					}
+				}
+			}
 		} else {
 			return false, http.StatusBadRequest, errors.New("unknown table format")
 		}
@@ -531,7 +549,7 @@ func (this *impl) lock() error {
 		this.logDebug("db mux locked with error \n" + string(debug.Stack()))
 		this.mux.Unlock()
 	}
-	this.logDebug("db mux locked\n" + string(debug.Stack()))
+	this.logDebug("db mux locked")
 	return err
 }
 
