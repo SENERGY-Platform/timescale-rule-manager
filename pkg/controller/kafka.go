@@ -46,6 +46,11 @@ func (this *impl) setupKafka(c config.Config, ctx context.Context, wg *sync.Wait
 	return nil
 }
 
+type DeviceCommand struct {
+	Command string `json:"command"`
+	Id      string `json:"id"`
+}
+
 func (this *impl) kafkaMessageHandler(topic string, msg []byte, _ time.Time) error {
 	err := this.lock()
 	if err != nil {
@@ -63,18 +68,15 @@ func (this *impl) kafkaMessageHandler(topic string, msg []byte, _ time.Time) err
 	}
 	switch topic {
 	case this.kafkaTopicPermissionUpdates:
-		var message model.PermissionSearchDoneMessage
+		var message DeviceCommand
 		err := json.Unmarshal(msg, &message)
 		if err != nil {
 			return err
 		}
-		if message.Handler != model.DoneMessageHandlerDeviceRepo {
+		if message.Command == "DELETE" {
 			return nil
 		}
-		if message.ResourceKind != "devices" {
-			return nil
-		}
-		tables, err := this.db.FindDeviceTables(message.ResourceId)
+		tables, err := this.db.FindDeviceTables(message.Id)
 		if err != nil {
 			return err
 		}

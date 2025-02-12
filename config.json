@@ -2,7 +2,7 @@
   "api_port": "8080",
   "kafka_bootstrap": "kafka.kafka",
   "kafka_topic_table_updates": "timescale-table-updates",
-  "kafka_topic_permission_updates": "device_repository_done",
+  "kafka_topic_permission_updates": "devices",
   "kafka_group_id": "timescale-rule-manager",
   "postgres_host": "timescale.timescale",
   "postgres_port": 5432,
