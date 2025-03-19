@@ -38,9 +38,11 @@ func NewConsumer(ctx context.Context, wg *sync.WaitGroup, kafkaBootstrap string,
 	}
 
 	earliestOffset := map[string]map[int32]int64{}
+	topicPartitions := map[string][]int32{}
 
 	for _, topic := range topics {
 		earliestOffset[topic] = map[int32]int64{}
+		topicPartitions[topic] = []int32{}
 		partitions, err := client.Partitions(topic)
 		if err != nil {
 			return nil, false, fmt.Errorf("Error getting partitions: %v", err)
@@ -51,13 +53,14 @@ func NewConsumer(ctx context.Context, wg *sync.WaitGroup, kafkaBootstrap string,
 				return nil, false, fmt.Errorf("Error getting offset: %v", err)
 			}
 			earliestOffset[topic][partition] = offset
+			topicPartitions[topic] = append(topicPartitions[topic], partition)
 		}
 	}
 	admin, err := sarama.NewClusterAdmin(brokers, saramaConfig)
 	if err != nil {
 		return nil, false, fmt.Errorf("Error getting kafka cluster admin: %v", err)
 	}
-	offsets, err := admin.ListConsumerGroupOffsets(groupId, map[string][]int32{})
+	offsets, err := admin.ListConsumerGroupOffsets(groupId, topicPartitions)
 	if err != nil {
 		return nil, false, fmt.Errorf("Error getting kafka consumer group offsets: %v", err)
 	}
@@ -71,8 +74,8 @@ outer:
 		}
 		for partition, partitionMeta := range topicMeta {
 			checked = true
-			storedOffset, ok := earliestOffsetTopic[partition]
-			if !ok || storedOffset < partitionMeta.Offset {
+			earliestStoredOffset, ok := earliestOffsetTopic[partition]
+			if !ok || partitionMeta.Offset < earliestStoredOffset {
 				needsSync = true
 				break outer
 			}
