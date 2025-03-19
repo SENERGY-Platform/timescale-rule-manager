@@ -550,21 +550,6 @@ func TestUpdateErrorHandling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
-		tx, cancel, err := db.GetTx()
-		defer cancel()
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = db.Exec("DROP TABLE \"device:7IUxe2sUT32dRXAZhzXczw_service:F_gsbPBvSb6xEz8lAWpguw\" CASCADE;", tx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = tx.Commit()
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
 	err = tx.Commit()
 	if err != nil {
 		t.Fatal(err)
