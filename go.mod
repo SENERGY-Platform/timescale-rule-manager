@@ -1,8 +1,8 @@
 module github.com/SENERGY-Platform/timescale-rule-manager
 
-go 1.23
+go 1.24
 
-toolchain go1.23.4
+toolchain go1.24.1
 
 require (
 	github.com/SENERGY-Platform/device-repository v0.1.52
