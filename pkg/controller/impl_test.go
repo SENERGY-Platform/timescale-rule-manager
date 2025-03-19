@@ -579,6 +579,7 @@ func TestUpdateErrorHandling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	time.Sleep(2 * time.Second) // update still running in the background and panics if DB closes before it finishes
 }
 
 func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.Config, c Controller, db database.DB, permV2 *permCtrl.Controller, deviceRepoDatabase deviceRepoDB.Database, cleanup func()) {
