@@ -46,12 +46,12 @@ func Start(fatal func(error), ctx context.Context, conf config.Config) (wg *sync
 
 	deviceRepoClient := deviceRepo.NewClient(conf.DeviceRepoUrl, nil)
 
-	control, err := controller.New(conf, db, permV2, deviceRepoClient, fatal, ctx, wg)
+	control, hasSynced, err := controller.New(conf, db, permV2, deviceRepoClient, fatal, ctx, wg)
 	if err != nil {
 		return wg, err
 	}
 
-	if conf.ApplyRulesAtStartup {
+	if conf.ApplyRulesAtStartup && !hasSynced {
 		err = control.ApplyAllRules()
 		if err != nil {
 			return wg, err

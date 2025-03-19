@@ -58,24 +58,34 @@ type impl struct {
 	deviceRepoClient            deviceRepo.Interface
 }
 
-func New(c config.Config, db database.DB, permv2 perm.Client, deviceRepoClient deviceRepo.Interface, fatal func(error), ctx context.Context, wg *sync.WaitGroup) (Controller, error) {
+func New(c config.Config, db database.DB, permv2 perm.Client, deviceRepoClient deviceRepo.Interface, fatal func(error), ctx context.Context, wg *sync.WaitGroup) (Controller, bool, error) {
 	oidClient, err := security.NewClient(c.KeycloakUrl, c.KeycloakClientId, c.KeycloakClientSecret)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	slowMuxLock := 0 * time.Nanosecond
 	if len(c.SlowMuxLock) > 0 {
 		slowMuxLock, err = time.ParseDuration(c.SlowMuxLock)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 	controller := &impl{db: db, permv2: permv2, oidClient: oidClient, deviceIdPrefix: c.DeviceIdPrefix, serviceIdPrefix: c.ServiceIdPrefix, mux: sync.Mutex{}, fatal: fatal, debug: c.Debug, slowMuxLock: slowMuxLock, defaultTimezone: c.DefaultTimezone, deviceRepoClient: deviceRepoClient}
-	err = controller.setupKafka(c, ctx, wg)
+	kafkaConsumer, needsSync, err := controller.setupKafka(c, ctx, wg)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return controller, err
+	if needsSync {
+		err = controller.ApplyAllRules()
+		if err != nil {
+			return nil, false, err
+		}
+	}
+	err = kafkaConsumer.Start()
+	if err != nil {
+		return nil, false, err
+	}
+	return controller, needsSync, err
 }
 
 func (this *impl) CreateRule(rule *model.Rule) (res *model.TypedRule, code int, err error) {

@@ -35,7 +35,10 @@ import (
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/go-uuid"
+	"github.com/testcontainers/testcontainers-go/modules/compose"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 func TestIntegration(t *testing.T) {
@@ -91,7 +94,11 @@ func TestIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		l2 := []model.TypedRule{*typed}
-		if !reflect.DeepEqual(list, l2) {
+		opt := cmp.FilterPath(func(p cmp.Path) bool { // ignore completed_run
+			return p.Last().String() == ".CompletedRun"
+		}, cmp.Ignore())
+
+		if !cmp.Equal(list, l2, opt) {
 			t.Fatal("Created != Read")
 		}
 	})
@@ -286,14 +293,14 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 			Users:      []string{userId},
 			Roles:      nil,
 			CommandTemplate: `
-			CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
-			WITH (timescaledb.continuous) AS
-			SELECT                            
-			  time_bucket(INTERVAL '1 day', time, '{{.Timezone}}') AS time,
-			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
-			FROM "{{.Table}}"
-			GROUP BY 1
-			WITH NO DATA;`,
+				CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
+				WITH (timescaledb.continuous) AS
+				SELECT                            
+				  time_bucket(INTERVAL '1 day', time, '{{.Timezone}}') AS time,
+				 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
+				FROM "{{.Table}}"
+				GROUP BY 1
+				WITH NO DATA;`,
 
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 		}
@@ -421,14 +428,14 @@ func TestRuleLogicForExportTables(t *testing.T) {
 			Users:      []string{userId},
 			Roles:      nil,
 			CommandTemplate: `
-			CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
-			WITH (timescaledb.continuous) AS
-			SELECT                            
-			  time_bucket(INTERVAL '1 day', time, '{{.Timezone}}') AS time,
-			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
-			FROM "{{.Table}}"
-			GROUP BY 1
-			WITH NO DATA;`,
+				CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
+				WITH (timescaledb.continuous) AS
+				SELECT                            
+				  time_bucket(INTERVAL '1 day', time, '{{.Timezone}}') AS time,
+				 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
+				FROM "{{.Table}}"
+				GROUP BY 1
+				WITH NO DATA;`,
 			DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 		}
 
@@ -500,13 +507,13 @@ func TestUpdateErrorHandling(t *testing.T) {
 		Users:      []string{userId},
 		Roles:      nil,
 		CommandTemplate: `
-			CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
-			WITH (timescaledb.continuous) AS
-			SELECT                            
-			  time_bucket(INTERVAL '1 day', time) AS time,
-			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
-			FROM "{{.Table}}"
-			GROUP BY 1;`,
+				CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
+				WITH (timescaledb.continuous) AS
+				SELECT                            
+				  time_bucket(INTERVAL '1 day', time) AS time,
+				 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
+				FROM "{{.Table}}"
+				GROUP BY 1;`,
 		DeleteTemplate: "DROP MATERIALIZED VIEW \"{{.Table}}_ld\";",
 	}
 
@@ -576,13 +583,13 @@ func TestUpdateErrorHandling(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	rule.CommandTemplate = `
-			CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
-			WITH (timescaledb.continuous) AS
-			SELECT                            
-			  time_bucket(INTERVAL '1 day', time) AS time,
-			 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
-			FROM "{{.Table}}"
-			GROUP BY 1 WITH NO DATA;`
+				CREATE MATERIALIZED VIEW IF NOT EXISTS "{{.Table}}_ld"
+				WITH (timescaledb.continuous) AS
+				SELECT                            
+				  time_bucket(INTERVAL '1 day', time) AS time,
+				 {{range $i, $el := slice .Columns 1}}{{if $i}},{{end}} last({{.}}, time) AS {{.}}{{end}}
+				FROM "{{.Table}}"
+				GROUP BY 1 WITH NO DATA;`
 	_, err = c.UpdateRule(typedRule.Rule)
 	if err != nil {
 		t.Fatal(err)
@@ -590,9 +597,18 @@ func TestUpdateErrorHandling(t *testing.T) {
 }
 
 func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.Config, c Controller, db database.DB, permV2 *permCtrl.Controller, deviceRepoDatabase deviceRepoDB.Database, cleanup func()) {
-	ctx = context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	stack, err := compose.NewDockerCompose("../../docker-compose.yml")
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	err = stack.WaitForService("keycloak-config-done", wait.ForExit()).Up(ctx)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
 	wg = &sync.WaitGroup{}
-	var err error
 	permV2, err = perm.NewTestClient(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -613,7 +629,6 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		KafkaBootstrap:              "localhost:9092",
 		KafkaTopicTableUpdates:      "timescale-table-updates",
 		KafkaTopicPermissionUpdates: "device_repository_done",
-		KafkaOffset:                 "earliest",
 		KafkaGroupId:                "timescale-rule-manager",
 		PostgresHost:                "localhost",
 		PostgresPort:                5432,
@@ -643,26 +658,20 @@ func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.C
 		fatal := func(err error) {
 			t.Fatal(err)
 		}
-		c, err = New(conf, db, permV2, deviceRepoClient, fatal, ctx, wg)
+		c, _, err = New(conf, db, permV2, deviceRepoClient, fatal, ctx, wg)
 		if err != nil {
-			t.Fatal(err.Error() + " Did you launch using test.sh?")
+			t.Fatal(err)
 		}
 	})
 	return ctx, wg, conf, c, db, permV2, deviceRepoDatabase, func() {
-		tx, cancel, err := db.GetTx()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer cancel()
-		_, err = db.Exec("DROP TABLE "+conf.PostgresRuleSchema+"."+conf.PostgresRuleTable+";", tx)
-		if err != nil {
-			t.Fatal(err)
-		}
+		cancel()
+		wg.Wait()
+		stack.Down(context.Background())
 	}
 }
 
 func TestShortIds(t *testing.T) {
-	// this is just a utility to generate id pairs for other tests
+	// this is just a utility to generate id pairs for other tests. it does not run any real tests on its own
 	long, err := uuid.GenerateUUID()
 	if err != nil {
 		t.Fatal(err)

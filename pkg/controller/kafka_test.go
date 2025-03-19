@@ -18,13 +18,14 @@ package controller
 
 import (
 	"encoding/json"
+	"testing"
+	"time"
+
 	"github.com/SENERGY-Platform/models/go/models"
 	perm "github.com/SENERGY-Platform/permissions-v2/pkg/client"
 	model2 "github.com/SENERGY-Platform/permissions-v2/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
-	"testing"
-	"time"
 )
 
 func TestKafkaUpdateBehaviour(t *testing.T) {

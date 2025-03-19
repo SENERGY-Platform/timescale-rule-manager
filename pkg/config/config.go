@@ -32,7 +32,6 @@ type Config struct {
 	KafkaBootstrap              string `json:"kafka_bootstrap"`
 	KafkaTopicTableUpdates      string `json:"kafka_topic_table_updates"`
 	KafkaTopicPermissionUpdates string `json:"kafka_topic_permission_updates"`
-	KafkaOffset                 string `json:"kafka_offset"`
 	KafkaGroupId                string `json:"kafka_group_id"`
 
 	PostgresHost       string `json:"postgres_host"`

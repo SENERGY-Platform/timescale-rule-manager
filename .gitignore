@@ -4,3 +4,4 @@ coverage
 .run
 timescale-rule-manager
 .vscode
+__debug*

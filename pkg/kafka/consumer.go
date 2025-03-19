@@ -18,44 +18,94 @@ package kafka
 
 import (
 	"context"
-	"github.com/Shopify/sarama"
+	"fmt"
 	"log"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Shopify/sarama"
 )
 
-const Latest = sarama.OffsetNewest
-const Earliest = sarama.OffsetOldest
+func NewConsumer(ctx context.Context, wg *sync.WaitGroup, kafkaBootstrap string, topics []string, groupId string, listener func(topic string, msg []byte, time time.Time) error, errorhandler func(err error, consumer *Consumer), debug bool) (consumer *Consumer, needsSync bool, err error) {
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
+	brokers := strings.Split(kafkaBootstrap, ",")
 
-func NewConsumer(ctx context.Context, wg *sync.WaitGroup, kafkaBootstrap string, topics []string, groupId string, offset int64, listener func(topic string, msg []byte, time time.Time) error, errorhandler func(err error, consumer *Consumer), debug bool) (consumer *Consumer, err error) {
-	consumer = &Consumer{ctx: ctx, wg: wg, kafkaBootstrap: kafkaBootstrap, topics: topics, listener: listener, errorhandler: errorhandler, offset: offset, ready: make(chan bool), groupId: groupId, debug: debug}
-	err = consumer.start()
+	client, err := sarama.NewClient(brokers, saramaConfig)
+	if err != nil {
+		return nil, false, fmt.Errorf("Error creating client: %v", err)
+	}
+
+	earliestOffset := map[string]map[int32]int64{}
+
+	for _, topic := range topics {
+		earliestOffset[topic] = map[int32]int64{}
+		partitions, err := client.Partitions(topic)
+		if err != nil {
+			return nil, false, fmt.Errorf("Error getting partitions: %v", err)
+		}
+		for _, partition := range partitions {
+			offset, err := client.GetOffset(topic, partition, sarama.OffsetOldest)
+			if err != nil {
+				return nil, false, fmt.Errorf("Error getting offset: %v", err)
+			}
+			earliestOffset[topic][partition] = offset
+		}
+	}
+	admin, err := sarama.NewClusterAdmin(brokers, saramaConfig)
+	if err != nil {
+		return nil, false, fmt.Errorf("Error getting kafka cluster admin: %v", err)
+	}
+	offsets, err := admin.ListConsumerGroupOffsets(groupId, map[string][]int32{})
+	if err != nil {
+		return nil, false, fmt.Errorf("Error getting kafka consumer group offsets: %v", err)
+	}
+	checked := false
+outer:
+	for topic, topicMeta := range offsets.Blocks {
+		earliestOffsetTopic, ok := earliestOffset[topic]
+		if !ok {
+			needsSync = true
+			break outer
+		}
+		for partition, partitionMeta := range topicMeta {
+			checked = true
+			storedOffset, ok := earliestOffsetTopic[partition]
+			if !ok || storedOffset < partitionMeta.Offset {
+				needsSync = true
+				break outer
+			}
+		}
+	}
+	if !checked {
+		needsSync = true
+	}
+
+	consumer = &Consumer{ctx: ctx, wg: wg, brokers: brokers, topics: topics, listener: listener, errorhandler: errorhandler, ready: make(chan bool), groupId: groupId, debug: debug, saramaConfig: saramaConfig}
 	return
 }
 
 type Consumer struct {
-	count          int
-	kafkaBootstrap string
-	topics         []string
-	ctx            context.Context
-	wg             *sync.WaitGroup
-	listener       func(topic string, msg []byte, time time.Time) error
-	errorhandler   func(err error, consumer *Consumer)
-	mux            sync.Mutex
-	offset         int64
-	groupId        string
-	ready          chan bool
-	debug          bool
+	count        int
+	brokers      []string
+	topics       []string
+	ctx          context.Context
+	wg           *sync.WaitGroup
+	listener     func(topic string, msg []byte, time time.Time) error
+	errorhandler func(err error, consumer *Consumer)
+	mux          sync.Mutex
+	offset       int64
+	groupId      string
+	ready        chan bool
+	debug        bool
+	saramaConfig *sarama.Config
 }
 
-func (this *Consumer) start() error {
-	config := sarama.NewConfig()
-	config.Consumer.Offsets.Initial = this.offset
-
-	client, err := sarama.NewConsumerGroup(strings.Split(this.kafkaBootstrap, ","), this.groupId, config)
+func (this *Consumer) Start() error {
+	consumerGroup, err := sarama.NewConsumerGroup(this.brokers, this.groupId, this.saramaConfig)
 	if err != nil {
-		log.Panicf("Error creating consumer group client: %v", err)
+		return fmt.Errorf("Error creating consumer group client: %v", err)
 	}
 
 	go func() {
@@ -65,7 +115,7 @@ func (this *Consumer) start() error {
 				log.Println("close kafka reader")
 				return
 			default:
-				if err := client.Consume(this.ctx, this.topics, this); err != nil {
+				if err := consumerGroup.Consume(this.ctx, this.topics, this); err != nil {
 					log.Panicf("Error from consumer: %v", err)
 				}
 				// check if context was cancelled, signaling that the consumer should stop
@@ -83,7 +133,7 @@ func (this *Consumer) start() error {
 	return err
 }
 
-func (this *Consumer) Setup(sarama.ConsumerGroupSession) error {
+func (this *Consumer) Setup(session sarama.ConsumerGroupSession) error {
 	// Mark the consumer as ready
 	close(this.ready)
 	this.wg.Add(1)

@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,20 +29,10 @@ import (
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 )
 
-func (this *impl) setupKafka(c config.Config, ctx context.Context, wg *sync.WaitGroup) error {
-	var offset int64
-	if strings.ToLower(c.KafkaOffset) == "earliest" {
-		offset = kafka.Earliest
-	} else {
-		offset = kafka.Latest
-	}
-	_, err := kafka.NewConsumer(ctx, wg, c.KafkaBootstrap, []string{c.KafkaTopicTableUpdates, c.KafkaTopicPermissionUpdates}, c.KafkaGroupId, offset, this.kafkaMessageHandler, this.kafkaErrorHandler, c.Debug)
-	if err != nil {
-		return err
-	}
+func (this *impl) setupKafka(c config.Config, ctx context.Context, wg *sync.WaitGroup) (consumer *kafka.Consumer, needsSync bool, err error) {
 	this.kafkaTopicPermissionUpdates = c.KafkaTopicPermissionUpdates
 	this.kafkaTopicTableUpdates = c.KafkaTopicTableUpdates
-	return nil
+	return kafka.NewConsumer(ctx, wg, c.KafkaBootstrap, []string{c.KafkaTopicTableUpdates, c.KafkaTopicPermissionUpdates}, c.KafkaGroupId, this.kafkaMessageHandler, this.kafkaErrorHandler, c.Debug)
 }
 
 type DeviceCommand struct {

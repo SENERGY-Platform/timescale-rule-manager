@@ -1,6 +1,4 @@
 #!/bin/bash
-docker compose down # ensure reset
-docker compose up -d --wait
 mkdir -p coverage
 # shellcheck disable=SC2034
 export TEMPLATE_DIR=$(pwd)/templates
@@ -9,5 +7,4 @@ go test -v -race -covermode=atomic -coverprofile=coverage/coverage.out \
   ./...
 TEST_RESULT=$?
 go tool cover -html=coverage/coverage.out -o coverage/coverage.html
-docker compose down # cleanup
 exit $TEST_RESULT
