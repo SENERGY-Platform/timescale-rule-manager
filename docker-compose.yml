@@ -1,6 +1,6 @@
 services:
   database:
-    image: 'timescale/timescaledb:2.10.1-pg13'
+    image: 'timescale/timescaledb:2.25.2-pg17'
     ports:
       - 5432:5432
     environment:
@@ -15,7 +15,7 @@ services:
       timeout: 3s
       retries: 3
   kafka:
-    image: 'bitnami/kafka:3.5.1'
+    image: 'bitnamilegacy/kafka:3.5.1'
     ports:
       - '9092:9092'
     environment:
