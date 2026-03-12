@@ -438,6 +438,7 @@ func (this *impl) ApplyAllRules() error {
 		for _, table := range tables {
 			allOk, _, err := this.applyRulesForTable(table, false, ruleIds, tx)
 			if err != nil {
+				log.Printf("ERR: could not apply rules to table %s", table)
 				return err
 			}
 			if !allOk {
