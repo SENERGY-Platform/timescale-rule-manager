@@ -304,8 +304,8 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 					tableInfo.UserIds = append(tableInfo.UserIds, userId)
 				}
 			}
-			devices, err, _ := this.deviceRepoClient.ListDevices(perm.InternalAdminToken, deviceRepoModel.DeviceListOptions{Ids: []string{tableInfo.DeviceId}})
-			if err != nil {
+			devices, err, code := this.deviceRepoClient.ListDevices(perm.InternalAdminToken, deviceRepoModel.DeviceListOptions{Ids: []string{tableInfo.DeviceId}})
+			if err != nil && code != http.StatusNotFound {
 				err = errors.New(err.Error() + tableInfo.DeviceId)
 				return false, http.StatusInternalServerError, err
 			}
