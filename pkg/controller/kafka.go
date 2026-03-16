@@ -20,12 +20,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"sync"
 	"time"
 
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/kafka"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 )
 
@@ -101,5 +102,5 @@ func (this *impl) kafkaMessageHandler(topic string, msg []byte, _ time.Time) err
 }
 
 func (this *impl) kafkaErrorHandler(err error, consumer *kafka.Consumer) {
-	log.Println("ERROR: Kafka : " + err.Error())
+	log.Logger.Error("Kafka error", attributes.ErrorKey, err)
 }

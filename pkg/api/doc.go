@@ -17,13 +17,14 @@
 package api
 
 import (
-	"fmt"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
-	"github.com/julienschmidt/httprouter"
-	"log"
 	"net/http"
 	"os"
+
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
+	"github.com/julienschmidt/httprouter"
 )
 
 const swaggerJSONLocation = "pkg/resources/swagger.json"
@@ -35,7 +36,7 @@ func init() {
 func DocEndpoint(router *httprouter.Router, _ config.Config, _ controller.Controller) {
 	json, readErr := os.ReadFile(swaggerJSONLocation)
 	if readErr != nil {
-		log.Println("ERROR reading swagger definition from ", swaggerJSONLocation)
+		log.Logger.Error("ERROR reading swagger definition", "location", swaggerJSONLocation, attributes.ErrorKey, readErr)
 	}
 
 	router.GET("/doc", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
@@ -46,7 +47,7 @@ func DocEndpoint(router *httprouter.Router, _ config.Config, _ controller.Contro
 		writer.Header().Set("Content-Type", "application/json")
 		_, err := writer.Write(json)
 		if err != nil {
-			fmt.Println("ERROR: " + err.Error())
+			log.Logger.Error("ERROR writing doc file", attributes.ErrorKey, err)
 		}
 	})
 }

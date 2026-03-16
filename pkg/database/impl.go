@@ -21,13 +21,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/SENERGY-Platform/models/go/models"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
-	_ "github.com/lib/pq"
-	"log"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/SENERGY-Platform/models/go/models"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
+	_ "github.com/lib/pq"
 )
 
 type impl struct {
@@ -48,7 +49,7 @@ func New(postgresHost string, postgresPort int, postgresUser string, postgresPw 
 	}
 	psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", postgresHost,
 		postgresPort, postgresUser, postgresPw, postgresDb)
-	log.Println("Connecting to PSQL...", psqlconn)
+	log.Logger.Info("Connecting to PSQL", "host", postgresHost, "port", postgresPort, "user", postgresUser, "db", postgresDb)
 	// open database
 	db, err := sql.Open("postgres", psqlconn)
 	if err != nil {
@@ -262,7 +263,7 @@ func (this *impl) Exec(query string, tx *sql.Tx) (sql.Result, error) {
 	t := time.Now()
 	r, err := tx.Exec(query)
 	if this.debug {
-		log.Println("DEBUG: executed in "+time.Since(t).String(), "err=", err, ": ", query)
+		log.Logger.Debug("executed query", "duration", time.Since(t), "err", err, "query", query)
 	}
 	return r, err
 }

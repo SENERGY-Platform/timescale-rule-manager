@@ -18,35 +18,39 @@ package api
 
 import (
 	"context"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/api/util"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
-	"github.com/julienschmidt/httprouter"
-	"log"
-	"net/http"
+	"os"
 	"reflect"
 	"runtime"
 	"sync"
 	"time"
+
+	"net/http"
+
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/api/util"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
+	"github.com/julienschmidt/httprouter"
 )
 
 var endpoints = []func(router *httprouter.Router, config config.Config, control controller.Controller){}
 
 func Start(ctx context.Context, wg *sync.WaitGroup, config config.Config, control controller.Controller) (err error) {
-	log.Println("start api")
+	log.Logger.Info("start api")
 	router := Router(config, control)
 	server := &http.Server{Addr: ":" + config.ApiPort, Handler: router, WriteTimeout: 10 * time.Second, ReadTimeout: 2 * time.Second, ReadHeaderTimeout: 2 * time.Second}
 	wg.Add(1)
 	go func() {
-		log.Println("Listening on ", server.Addr)
+		log.Logger.Info("Listening on", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Println("ERROR: api server error", err)
-			log.Fatal(err)
+			log.Logger.Error("api server error", attributes.ErrorKey, err)
+			os.Exit(1)
 		}
 	}()
 	go func() {
 		<-ctx.Done()
-		log.Println("DEBUG: api shutdown", server.Shutdown(context.Background()))
+		log.Logger.Debug("api shutdown", attributes.ErrorKey, server.Shutdown(context.Background()))
 		wg.Done()
 	}()
 	return nil
@@ -55,10 +59,10 @@ func Start(ctx context.Context, wg *sync.WaitGroup, config config.Config, contro
 func Router(config config.Config, control controller.Controller) http.Handler {
 	router := httprouter.New()
 	for _, e := range endpoints {
-		log.Println("add endpoints: " + runtime.FuncForPC(reflect.ValueOf(e).Pointer()).Name())
+		log.Logger.Info("add endpoint", "name", runtime.FuncForPC(reflect.ValueOf(e).Pointer()).Name())
 		e(router, config, control)
 	}
-	log.Println("add logging and cors")
+	log.Logger.Info("add logging and cors")
 	corsHandler := util.NewCors(router)
 	return util.NewLogger(corsHandler)
 }

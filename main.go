@@ -19,8 +19,10 @@ package main
 import (
 	"context"
 	"flag"
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
+	_log "github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
 	"log"
 	"os"
 	"os/signal"
@@ -37,10 +39,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	_log.Init(conf)
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	fatal := func(err error) {
-		log.Println("Fatal shutdown requested!, Error: " + err.Error())
+		_log.Logger.Error("Fatal shutdown requested!", attributes.ErrorKey, err)
 		cancel()
 		go func() {
 			<-time.After(25 * time.Second)
@@ -50,6 +54,7 @@ func main() {
 
 	wg, err := pkg.Start(fatal, ctx, conf)
 	if err != nil {
+		_log.Logger.Error("Failed to start package", attributes.ErrorKey, err)
 		log.Fatal(err)
 	}
 
@@ -57,7 +62,7 @@ func main() {
 		shutdown := make(chan os.Signal, 1)
 		signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
 		sig := <-shutdown
-		log.Println("received shutdown signal", sig)
+		_log.Logger.Info("received shutdown signal", "signal", sig)
 		cancel()
 	}()
 

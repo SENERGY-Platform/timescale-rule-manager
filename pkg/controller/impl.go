@@ -21,7 +21,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"net/http"
 	"regexp"
 	"runtime/debug"
@@ -32,10 +31,12 @@ import (
 
 	deviceRepo "github.com/SENERGY-Platform/device-repository/lib/client"
 	deviceRepoModel "github.com/SENERGY-Platform/device-repository/lib/model"
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
 	"github.com/SENERGY-Platform/models/go/models"
 	perm "github.com/SENERGY-Platform/permissions-v2/pkg/client"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/security"
 	"github.com/hashicorp/go-uuid"
@@ -310,7 +311,7 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 				return false, http.StatusInternalServerError, err
 			}
 			if len(devices) != 1 {
-				log.Println("WARN: Could not get device from device repo. Using default timezone")
+				log.Logger.Warn("Could not get device from device repo. Using default timezone")
 			} else {
 				for _, a := range devices[0].Attributes {
 					if strings.ToLower(a.Key) == "timezone" {
@@ -438,11 +439,11 @@ func (this *impl) ApplyAllRules() error {
 		for _, table := range tables {
 			allOk, _, err := this.applyRulesForTable(table, false, ruleIds, tx)
 			if err != nil {
-				log.Printf("ERR: could not apply rules to table %s", table)
+				log.Logger.Error("could not apply rules to table", "table", table, attributes.ErrorKey, err)
 				continue
 			}
 			if !allOk {
-				log.Println("WARN: Not all rules for table " + table + " could be applied without errors")
+				log.Logger.Warn("Not all rules for table could be applied without errors", "table", table)
 			}
 		}
 
@@ -462,7 +463,7 @@ func (this *impl) runRule(rule *model.Rule) {
 	this.logDebug("running rule " + rule.Id)
 	err := this.lock()
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Logger.Error("lock failed", attributes.ErrorKey, err)
 		return
 	}
 	this.logDebug("locked db for rule " + rule.Id)
@@ -474,18 +475,18 @@ func (this *impl) runRule(rule *model.Rule) {
 	tx, cancel, err := this.db.GetTx()
 	defer cancel()
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Logger.Error("get tx failed", attributes.ErrorKey, err)
 		return
 	}
 	rollbackAndSave := func(rule *model.Rule) {
-		log.Println("rolling back rule "+rule.Id, rule.Errors)
+		log.Logger.Warn("rolling back rule", "ruleId", rule.Id, "errors", rule.Errors)
 		err = tx.Rollback()
 		if err != nil {
-			log.Println("ERROR", err)
+			log.Logger.Error("tx rollback failed", attributes.ErrorKey, err)
 		}
 		err = this.saveRule(rule)
 		if err != nil {
-			log.Println("ERROR", err)
+			log.Logger.Error("save rule failed", attributes.ErrorKey, err)
 		}
 	}
 	tables, err := this.db.FindMatchingTables([]string{rule.Id}, tx)
@@ -519,13 +520,13 @@ func (this *impl) runRule(rule *model.Rule) {
 	rule.CompletedRun = true
 	err = this.db.UpdateRule(rule, tx)
 	if err != nil {
-		log.Println("ERROR", err)
+		log.Logger.Error("update rule failed", attributes.ErrorKey, err)
 		return
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		log.Println("ERROR", err)
+		log.Logger.Error("commit failed", attributes.ErrorKey, err)
 		return
 	}
 	this.logDebug("rule " + rule.Id + " finished run, committed changes")
@@ -567,7 +568,7 @@ func (this *impl) lock() error {
 func (this *impl) unlock() {
 	err := this.db.Unlock()
 	if err != nil {
-		log.Println("ERROR unlocking db, panic will follow to avoid deadlock!")
+		log.Logger.Error("unlocking db failed, panic will follow to avoid deadlock")
 		panic(err)
 	}
 	this.mux.Unlock()
@@ -576,7 +577,7 @@ func (this *impl) unlock() {
 
 func (this *impl) logDebug(s string) {
 	if this.debug {
-		log.Println("DEBUG: " + s)
+		log.Logger.Debug(s)
 	}
 }
 

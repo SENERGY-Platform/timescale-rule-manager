@@ -24,5 +24,6 @@
   "debug": false,
   "slow_mux_lock": "0ms",
   "default_timezone": "Europe/Berlin",
-  "device_repo_url": "http://api.device-repository:8080"
+  "device_repo_url": "http://api.device-repository:8080",
+  "log_handler": "json"
 }

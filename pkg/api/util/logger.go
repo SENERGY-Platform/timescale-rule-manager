@@ -17,9 +17,10 @@
 package util
 
 import (
-	"log"
 	"net/http"
 	"time"
+
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
 )
 
 func NewLogger(handler http.Handler) *LoggerMiddleWare {
@@ -45,7 +46,7 @@ func (this *LoggerMiddleWare) log(request *http.Request, response *ResponseWrite
 	method := request.Method
 	path := request.URL
 	status := response.Status
-	log.Printf("[%v] %v %v %v\n", method, path, status, time.Since(t))
+	log.Logger.Info("http request", "method", method, "path", path, "status", status, "duration", time.Since(t))
 }
 
 type ResponseWriterWithStatusCodeLog struct {

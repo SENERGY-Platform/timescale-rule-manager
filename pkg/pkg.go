@@ -18,15 +18,16 @@ package pkg
 
 import (
 	"context"
-	"log"
 	"sync"
 
 	deviceRepo "github.com/SENERGY-Platform/device-repository/lib/client"
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
 	"github.com/SENERGY-Platform/permissions-v2/pkg/client"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/api"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
 )
 
@@ -35,7 +36,7 @@ func Start(fatal func(error), ctx context.Context, conf config.Config) (wg *sync
 
 	_, err = templates.New(&conf)
 	if err != nil {
-		log.Println("WARNING: Could not read templates: " + err.Error())
+		log.Logger.Warn("Could not read templates", attributes.ErrorKey, err)
 	}
 	db, err := database.New(conf.PostgresHost, conf.PostgresPort, conf.PostgresUser, conf.PostgresPw, conf.PostgresDb, conf.PostgresRuleSchema, conf.PostgresRuleTable, conf.Timeout, conf.PostgresLockKey, conf.Debug, ctx, wg)
 	if err != nil {

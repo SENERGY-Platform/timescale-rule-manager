@@ -19,12 +19,14 @@ package templates
 import (
 	"encoding/json"
 	"errors"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
-	"github.com/fsnotify/fsnotify"
-	"log"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
+	log "github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
+	"github.com/fsnotify/fsnotify"
 )
 
 type Template struct {
@@ -50,7 +52,7 @@ func New(c *config.Config) (*TemplateStore, error) {
 		return nil, errors.New("config can only be nil if singleton has been created with config")
 	}
 	singleton = &TemplateStore{Templates: make(map[string]Template), mux: sync.Mutex{}}
-	log.Println("Reading templates from " + c.TemplateDir)
+	log.Logger.Info("Reading templates", "dir", c.TemplateDir)
 	files, err := os.ReadDir(c.TemplateDir)
 	if err != nil {
 		return nil, err
@@ -58,7 +60,7 @@ func New(c *config.Config) (*TemplateStore, error) {
 	singleton.mux.Lock()
 	for _, file := range files {
 		if file.IsDir() || !strings.HasSuffix(file.Name(), ".json") {
-			log.Println("Ignoring template in " + file.Name() + ": is dir or does not end in .json")
+			log.Logger.Info("Ignoring template: is dir or does not end in .json", "file", file.Name())
 			continue
 		}
 		tmpl, err := os.ReadFile(c.TemplateDir + "/" + file.Name())
@@ -87,9 +89,9 @@ func New(c *config.Config) (*TemplateStore, error) {
 				if !ok {
 					return
 				}
-				log.Println("fsnotify event:", event)
+				log.Logger.Debug("fsnotify event", "event", event)
 				if !strings.HasSuffix(event.Name, ".json") {
-					log.Println("Ignoring template in " + event.Name + ": does not end in .json")
+					log.Logger.Debug("Ignoring template: does not end in .json", "file", event.Name)
 					continue
 				}
 				switch event.Op {
@@ -100,12 +102,12 @@ func New(c *config.Config) (*TemplateStore, error) {
 						var ruleTmpl Template
 						tmpl, err := os.ReadFile(event.Name)
 						if err != nil {
-							log.Println("ERROR in fsnotify watcher. Templates might not update automatically: ", err)
+							log.Logger.Error("ERROR in fsnotify watcher. Templates might not update automatically", attributes.ErrorKey, err)
 							continue
 						}
 						err = json.Unmarshal(tmpl, &ruleTmpl)
 						if err != nil {
-							log.Println("ERROR in fsnotify watcher. Templates might not update automatically: ", err)
+							log.Logger.Error("ERROR in fsnotify watcher. Templates might not update automatically", attributes.ErrorKey, err)
 							continue
 						}
 						singleton.Templates[strings.TrimSuffix(strings.TrimPrefix(event.Name, c.TemplateDir+"/"), ".json")] = ruleTmpl
@@ -124,7 +126,7 @@ func New(c *config.Config) (*TemplateStore, error) {
 				if !ok {
 					return
 				}
-				log.Println("ERROR in fsnotify watcher. Templates might not update automatically: ", err)
+				log.Logger.Error("fsnotify watcher error. Templates might not update automatically", attributes.ErrorKey, err)
 				continue
 			}
 		}
