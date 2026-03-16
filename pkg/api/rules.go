@@ -18,39 +18,41 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
+	"strconv"
+
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
-	"github.com/julienschmidt/httprouter"
-	"net/http"
-	"strconv"
+	"github.com/gin-gonic/gin"
 )
 
 func init() {
 	endpoints = append(endpoints, RulesEndpoint)
 }
 
-func RulesEndpoint(router *httprouter.Router, config config.Config, control controller.Controller) {
-	router.GET("/rules", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		limitStr := request.URL.Query().Get("limit")
+func RulesEndpoint(router gin.IRoutes, _ config.Config, control controller.Controller) {
+	router.GET("/rules", func(c *gin.Context) {
+		limitStr := c.Query("limit")
 		var limit int
 		var err error
 		if len(limitStr) > 0 {
 			limit, err = strconv.Atoi(limitStr)
 			if err != nil {
-				http.Error(writer, err.Error(), http.StatusBadRequest)
+				c.Error(errors.Join(model.ErrBadRequest, err))
 				return
 			}
 		} else {
 			limit = 50
 		}
 
-		offsetStr := request.URL.Query().Get("offset")
+		offsetStr := c.Query("offset")
 		var offset int
-		if len(limitStr) > 0 {
+		if len(offsetStr) > 0 {
 			offset, err = strconv.Atoi(offsetStr)
 			if err != nil {
-				http.Error(writer, err.Error(), http.StatusBadRequest)
+				c.Error(errors.Join(model.ErrBadRequest, err))
 				return
 			}
 		} else {
@@ -59,77 +61,79 @@ func RulesEndpoint(router *httprouter.Router, config config.Config, control cont
 
 		rules, code, err := control.ListRules(limit, offset)
 		if err != nil {
-			http.Error(writer, err.Error(), code)
+			_ = c.Error(errors.Join(model.GetError(code), err))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(rules)
+		c.Header("Content-Type", "application/json")
+		err = json.NewEncoder(c.Writer).Encode(rules)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.ErrInternalServerError, err))
 			return
 		}
 	})
 
-	router.GET("/rules/:id", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		id := params.ByName("id")
+	router.GET("/rules/:id", func(c *gin.Context) {
+		id := c.Param("id")
 		rule, code, err := control.GetRule(id)
 		if err != nil {
-			http.Error(writer, err.Error(), code)
+			_ = c.Error(errors.Join(model.GetError(code), err))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(rule)
+		c.Header("Content-Type", "application/json")
+		err = json.NewEncoder(c.Writer).Encode(rule)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.ErrInternalServerError, err))
 			return
 		}
 	})
 
-	router.POST("/rules", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+	router.POST("/rules", func(c *gin.Context) {
 		rule := model.Rule{}
-		err := json.NewDecoder(request.Body).Decode(&rule)
+		err := c.ShouldBindJSON(&rule)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.ErrBadRequest, err))
 			return
 		}
 		respRule, code, err := control.CreateRule(&rule)
 		if err != nil {
-			http.Error(writer, err.Error(), code)
+			_ = c.Error(errors.Join(model.GetError(code), err))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(respRule)
+		c.Header("Content-Type", "application/json")
+		err = json.NewEncoder(c.Writer).Encode(respRule)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.ErrInternalServerError, err))
 			return
 		}
 	})
 
-	router.PUT("/rules/:id", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+	router.PUT("/rules/:id", func(c *gin.Context) {
 		rule := model.Rule{}
-		err := json.NewDecoder(request.Body).Decode(&rule)
+		err := c.ShouldBindJSON(&rule)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.ErrBadRequest, err))
 			return
 		}
-		id := params.ByName("id")
+		id := c.Param("id")
 		if id != rule.Id {
-			http.Error(writer, "Ids don't match", http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.ErrBadRequest, errors.New("ids don't match")))
 			return
 		}
 		code, err := control.UpdateRule(&rule)
 		if err != nil {
-			http.Error(writer, err.Error(), code)
+			_ = c.Error(errors.Join(model.GetError(code), err))
 			return
 		}
+		c.Status(http.StatusOK)
 	})
 
-	router.DELETE("/rules/:id", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
-		id := params.ByName("id")
+	router.DELETE("/rules/:id", func(c *gin.Context) {
+		id := c.Param("id")
 		code, err := control.DeleteRule(id)
 		if err != nil {
-			http.Error(writer, err.Error(), code)
+			_ = c.Error(errors.Join(model.GetError(code), err))
 			return
 		}
+		c.Status(http.StatusOK)
 	})
 }

@@ -18,78 +18,81 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
+
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
-	"github.com/julienschmidt/httprouter"
-	"net/http"
+	"github.com/gin-gonic/gin"
 )
 
 func init() {
 	endpoints = append(endpoints, TemplateRulesEndpoint)
 }
 
-func TemplateRulesEndpoint(router *httprouter.Router, _ config.Config, control controller.Controller) {
-	router.POST("/template-rules", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+func TemplateRulesEndpoint(router gin.IRoutes, _ config.Config, control controller.Controller) {
+	router.POST("/template-rules", func(c *gin.Context) {
 		templateRule := model.TemplateRule{}
-		err := json.NewDecoder(request.Body).Decode(&templateRule)
+		err := c.ShouldBindJSON(&templateRule)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.ErrBadRequest, err))
 			return
 		}
 		rule, err := templateRule.Rule()
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.ErrBadRequest, err))
 			return
 		}
 		respRule, code, err := control.CreateRule(rule)
 		if err != nil {
-			http.Error(writer, err.Error(), code)
+			_ = c.Error(errors.Join(model.GetError(code), err))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(respRule)
+		c.Header("Content-Type", "application/json")
+		err = json.NewEncoder(c.Writer).Encode(respRule)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.ErrInternalServerError, err))
 			return
 		}
 	})
 
-	router.PUT("/template-rules/:id", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+	router.PUT("/template-rules/:id", func(c *gin.Context) {
 		caRule := model.TemplateRule{}
-		err := json.NewDecoder(request.Body).Decode(&caRule)
+		err := c.ShouldBindJSON(&caRule)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.ErrBadRequest, err))
 			return
 		}
-		id := params.ByName("id")
+		id := c.Param("id")
 		if id != caRule.Id {
-			http.Error(writer, "Ids don't match", http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.ErrBadRequest, errors.New("ids don't match")))
 			return
 		}
 		rule, err := caRule.Rule()
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusBadRequest)
+			_ = c.Error(errors.Join(model.ErrBadRequest, err))
 			return
 		}
 		code, err := control.UpdateRule(rule)
 		if err != nil {
-			http.Error(writer, err.Error(), code)
+			_ = c.Error(errors.Join(model.GetError(code), err))
 			return
 		}
+		c.Status(http.StatusOK)
 	})
 
-	router.GET("/templates", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+	router.GET("/templates", func(c *gin.Context) {
 		ts, err := templates.New(nil)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.ErrInternalServerError, err))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(writer).Encode(ts.Templates)
+		c.Header("Content-Type", "application/json")
+		err = json.NewEncoder(c.Writer).Encode(ts.Templates)
 		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.ErrInternalServerError, err))
 			return
 		}
 	})

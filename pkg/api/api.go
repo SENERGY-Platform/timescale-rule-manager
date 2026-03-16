@@ -26,15 +26,17 @@ import (
 
 	"net/http"
 
+	gin_mw "github.com/SENERGY-Platform/gin-middleware"
 	"github.com/SENERGY-Platform/go-service-base/struct-logger/attributes"
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/api/util"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
-	"github.com/julienschmidt/httprouter"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
+	"github.com/gin-contrib/requestid"
+	"github.com/gin-gonic/gin"
 )
 
-var endpoints = []func(router *httprouter.Router, config config.Config, control controller.Controller){}
+var endpoints = []func(router gin.IRoutes, config config.Config, control controller.Controller){}
 
 func Start(ctx context.Context, wg *sync.WaitGroup, config config.Config, control controller.Controller) (err error) {
 	log.Logger.Info("start api")
@@ -57,14 +59,23 @@ func Start(ctx context.Context, wg *sync.WaitGroup, config config.Config, contro
 }
 
 func Router(config config.Config, control controller.Controller) http.Handler {
-	router := httprouter.New()
+	router := gin.New()
+	router.Use(
+		gin_mw.StructLoggerHandlerWithDefaultGenerators(
+			log.Logger.With(attributes.LogRecordTypeKey, attributes.HttpAccessLogRecordTypeVal),
+			attributes.Provider,
+			[]string{},
+			nil,
+		),
+		requestid.New(requestid.WithCustomHeaderStrKey("X-Request-ID")),
+		gin_mw.ErrorHandler(model.GetStatusCode, ", "),
+		gin_mw.StructRecoveryHandler(log.Logger, gin_mw.DefaultRecoveryFunc),
+	)
 	for _, e := range endpoints {
 		log.Logger.Info("add endpoint", "name", runtime.FuncForPC(reflect.ValueOf(e).Pointer()).Name())
 		e(router, config, control)
 	}
-	log.Logger.Info("add logging and cors")
-	corsHandler := util.NewCors(router)
-	return util.NewLogger(corsHandler)
+	return router
 }
 
 func getToken(request *http.Request) string {

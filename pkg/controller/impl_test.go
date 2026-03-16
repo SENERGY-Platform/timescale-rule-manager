@@ -33,6 +33,7 @@ import (
 	model2 "github.com/SENERGY-Platform/permissions-v2/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/database"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/templates"
 	"github.com/google/go-cmp/cmp"
@@ -583,6 +584,7 @@ func TestUpdateErrorHandling(t *testing.T) {
 }
 
 func setup(t *testing.T) (ctx context.Context, wg *sync.WaitGroup, conf config.Config, c Controller, db database.DB, permV2 *permCtrl.Controller, deviceRepoDatabase deviceRepoDB.Database, cleanup func()) {
+	log.InitForTest()
 	ctx, cancel := context.WithCancel(context.Background())
 	stack, err := compose.NewDockerCompose("../../docker-compose.yml")
 	if err != nil {

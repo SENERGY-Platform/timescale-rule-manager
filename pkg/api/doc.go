@@ -17,6 +17,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"os"
 
@@ -24,7 +25,8 @@ import (
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/config"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/controller"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/log"
-	"github.com/julienschmidt/httprouter"
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
+	"github.com/gin-gonic/gin"
 )
 
 const swaggerJSONLocation = "pkg/resources/swagger.json"
@@ -33,21 +35,17 @@ func init() {
 	endpoints = append(endpoints, DocEndpoint)
 }
 
-func DocEndpoint(router *httprouter.Router, _ config.Config, _ controller.Controller) {
+func DocEndpoint(router gin.IRoutes, _ config.Config, _ controller.Controller) {
 	json, readErr := os.ReadFile(swaggerJSONLocation)
 	if readErr != nil {
 		log.Logger.Error("ERROR reading swagger definition", "location", swaggerJSONLocation, attributes.ErrorKey, readErr)
 	}
 
-	router.GET("/doc", func(writer http.ResponseWriter, request *http.Request, params httprouter.Params) {
+	router.GET("/doc", func(c *gin.Context) {
 		if readErr != nil {
-			http.Error(writer, "Error reading doc file", http.StatusInternalServerError)
+			_ = c.Error(errors.Join(model.ErrInternalServerError, readErr))
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, err := writer.Write(json)
-		if err != nil {
-			log.Logger.Error("ERROR writing doc file", attributes.ErrorKey, err)
-		}
+		c.Data(http.StatusOK, "application/json", json)
 	})
 }
