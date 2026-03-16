@@ -59,6 +59,7 @@ func Start(ctx context.Context, wg *sync.WaitGroup, config config.Config, contro
 }
 
 func Router(config config.Config, control controller.Controller) http.Handler {
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(
 		gin_mw.StructLoggerHandlerWithDefaultGenerators(
