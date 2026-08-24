@@ -212,14 +212,7 @@ func TestRuleLogicForDeviceTables(t *testing.T) {
 					Value: "Asia/Kathmandu",
 				}},
 			},
-		})
-		deviceRepoDatabase.SetRights("devices", "ec85317b-6b14-4f7d-9d45-70198735dccf", deviceRepoModel.ResourceRights{
-			GroupRights: map[string]deviceRepoModel.Right{
-				"admin": {
-					Read: true,
-				},
-			},
-		})
+		}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
