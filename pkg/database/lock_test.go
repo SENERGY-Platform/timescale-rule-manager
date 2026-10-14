@@ -48,6 +48,9 @@ func startLockTestServer(t *testing.T) lockTestServer {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
+	// All packages of one go test run share a reaper session, and this package's reaper would remove the controller
+	// tests' compose containers ten seconds after this package ends; CleanupContainer removes this container instead.
+	t.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 	// Random host port instead of the compose file's fixed 5432, so this package can run next to the controller tests.
 	ctr, err := testcontainers.Run(ctx, "timescale/timescaledb:2.25.2-pg17",
 		testcontainers.WithExposedPorts("5432/tcp"),
