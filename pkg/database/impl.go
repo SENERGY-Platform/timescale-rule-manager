@@ -19,6 +19,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"strings"
@@ -38,6 +39,7 @@ type impl struct {
 	ctx        context.Context
 	timeout    time.Duration
 	lockKey    int64
+	lockConn   *sql.Conn
 	debug      bool
 }
 
@@ -269,11 +271,47 @@ func (this *impl) Exec(query string, tx *sql.Tx) (sql.Result, error) {
 }
 
 func (this *impl) Lock() error {
-	_, err := this.sql.Exec(fmt.Sprintf("SELECT pg_advisory_lock(%v);", this.lockKey))
-	return err
+	if this.lockConn != nil {
+		return errors.New("advisory lock already held")
+	}
+	// A session-level advisory lock belongs to the connection that took it, so Unlock must run on this same connection.
+	conn, err := this.sql.Conn(this.ctx)
+	if err != nil {
+		return err
+	}
+	_, err = conn.ExecContext(this.ctx, "SELECT pg_advisory_lock($1);", this.lockKey)
+	if err != nil {
+		discardConn(conn)
+		return err
+	}
+	this.lockConn = conn
+	return nil
 }
 
 func (this *impl) Unlock() error {
-	_, err := this.sql.Exec(fmt.Sprintf("SELECT pg_advisory_unlock(%v);", this.lockKey))
-	return err
+	conn := this.lockConn
+	if conn == nil {
+		return errors.New("advisory lock not held")
+	}
+	this.lockConn = nil
+	// Not bound to this.ctx, so the lock is still released cleanly during shutdown.
+	ctx, cancel := context.WithTimeout(context.Background(), this.timeout)
+	defer cancel()
+	var unlocked bool
+	err := conn.QueryRowContext(ctx, "SELECT pg_advisory_unlock($1);", this.lockKey).Scan(&unlocked)
+	if err == nil && !unlocked {
+		err = errors.New("advisory lock was not held by its connection")
+	}
+	if err != nil {
+		discardConn(conn)
+		return err
+	}
+	return conn.Close()
+}
+
+// discardConn closes the physical connection instead of returning it to the pool, which ends the session and with
+// it any advisory lock it may still hold.
+func discardConn(conn *sql.Conn) {
+	_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+	_ = conn.Close()
 }
