@@ -84,7 +84,7 @@ require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.3-0.20251027160822-ad3df93bed29 // indirect
 	github.com/SENERGY-Platform/developer-notifications v0.0.6 // indirect
-	github.com/SENERGY-Platform/gin-middleware v0.14.1
+	github.com/SENERGY-Platform/gin-middleware v0.14.2
 	github.com/SENERGY-Platform/go-service-base/struct-logger v0.8.0
 	github.com/SENERGY-Platform/service-commons v0.0.0-20260821114734-3e4578ac2358 // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
