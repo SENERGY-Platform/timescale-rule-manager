@@ -364,16 +364,12 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 		}
 		errorhandling := func(ruleErr error) error {
 			allRanOk = false
-			_, err = tx.Exec("ROLLBACK TO SAVEPOINT " + savepoint + ";")
-			if err != nil {
+			if _, err := tx.Exec("ROLLBACK TO SAVEPOINT " + savepoint + ";"); err != nil {
 				return err
 			}
-			if rule.Errors == nil {
-				rule.Errors = []string{}
-			}
-			rule.Errors = append(rule.Errors, table+": "+ruleErr.Error())
-			err = this.db.UpdateRule(&rule, tx)
-			return err
+			// One entry per table with the latest result, so repeated failures do not grow the row.
+			rule.Errors = append(withoutTableErrors(rule.Errors, table), table+": "+ruleErr.Error())
+			return this.db.UpdateRule(&rule, tx)
 		}
 		tmpl, err := template.New("").Parse(t)
 		if err != nil {
@@ -399,6 +395,13 @@ func (this *impl) applyRulesForTable(table string, useDeleteTemplateInstead bool
 			}
 			continue
 		}
+		if remaining := withoutTableErrors(rule.Errors, table); len(remaining) != len(rule.Errors) {
+			rule.Errors = remaining
+			err = this.db.UpdateRule(&rule, tx)
+			if err != nil {
+				return false, http.StatusInternalServerError, err
+			}
+		}
 	}
 
 	return allRanOk, http.StatusOK, nil
@@ -414,30 +417,42 @@ func (this *impl) ApplyAllRules() error {
 		this.unlock()
 		this.logDebug("unlocked db for ApplyAllRules")
 	}()
+	// All pages are read before any table commits: the listing has no ORDER BY, and committed rule updates can
+	// move rows between pages.
 	limit := 1000
 	offset := 0
-	tx, cancel, err := this.db.GetTx()
-	if err != nil {
-		return err
-	}
-	defer cancel()
+	pages := [][]string{}
 	for {
 		rules, _, err := this.ListRules(limit, offset)
 		if err != nil {
 			return err
 		}
-
-		ruleIds := make([]string, len(rules))
-		for i, rule := range rules {
-			ruleIds[i] = rule.Id
+		if len(rules) > 0 {
+			ruleIds := make([]string, len(rules))
+			for i, rule := range rules {
+				ruleIds[i] = rule.Id
+			}
+			pages = append(pages, ruleIds)
 		}
-		tables, err := this.db.FindMatchingTables(ruleIds, tx)
+		offset += len(rules)
+		if len(rules) < limit {
+			break
+		}
+	}
+
+	for _, ruleIds := range pages {
+		tables, err := this.findMatchingTables(ruleIds)
 		if err != nil {
 			return err
 		}
-
 		for _, table := range tables {
-			allOk, _, err := this.applyRulesForTable(table, false, ruleIds, tx)
+			// One transaction per table, so a failing table neither aborts the others nor holds their locks.
+			tx, cancel, err := this.db.GetTx()
+			if err != nil {
+				return err
+			}
+			allOk, err := this.applyRulesForTableAndCommit(table, ruleIds, tx)
+			cancel()
 			if err != nil {
 				log.Logger.Error("could not apply rules to table", "table", table, attributes.ErrorKey, err)
 				continue
@@ -446,17 +461,26 @@ func (this *impl) ApplyAllRules() error {
 				log.Logger.Warn("Not all rules for table could be applied without errors", "table", table)
 			}
 		}
-
-		offset += len(rules)
-		if len(rules) < limit {
-			break
-		}
-	}
-	err = tx.Commit()
-	if err != nil {
-		return err
 	}
 	return nil
+}
+
+func (this *impl) findMatchingTables(ruleIds []string) ([]string, error) {
+	tx, cancel, err := this.db.GetTx()
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+	defer func() { _ = tx.Rollback() }() // read only
+	return this.db.FindMatchingTables(ruleIds, tx)
+}
+
+func (this *impl) applyRulesForTableAndCommit(table string, ruleIds []string, tx *sql.Tx) (allOk bool, err error) {
+	allOk, _, err = this.applyRulesForTable(table, false, ruleIds, tx)
+	if err != nil {
+		return false, errors.Join(err, tx.Rollback())
+	}
+	return allOk, tx.Commit()
 }
 
 func (this *impl) runRule(rule *model.Rule) {
@@ -579,6 +603,18 @@ func (this *impl) logDebug(s string) {
 	if this.debug {
 		log.Logger.Debug(s)
 	}
+}
+
+// withoutTableErrors returns a copy of errs without the entries applyRulesForTable wrote for table.
+func withoutTableErrors(errs []string, table string) []string {
+	prefix := table + ": "
+	result := make([]string, 0, len(errs))
+	for _, e := range errs {
+		if !strings.HasPrefix(e, prefix) {
+			result = append(result, e)
+		}
+	}
+	return result
 }
 
 func execTempl(t *template.Template, value any) (string, error) {

@@ -20,11 +20,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/lib/pq"
 	"reflect"
-	"strings"
 	"time"
 )
 
@@ -67,9 +65,10 @@ func (this *impl) queryStrings(query string, tx queryable) (result []string, err
 	return result, nil
 }
 
-func getFieldsAndValues(rule *model.Rule) (fields []string, values []string) {
+// getFieldsAndArgs returns the sqltype-tagged columns of rule and their values as query arguments.
+func getFieldsAndArgs(rule *model.Rule) (fields []string, args []any) {
 	fields = []string{}
-	values = []string{}
+	args = []any{}
 	t := reflect.TypeOf(*rule)
 	v := reflect.ValueOf(*rule)
 	for i := 0; i < t.NumField(); i++ {
@@ -79,47 +78,23 @@ func getFieldsAndValues(rule *model.Rule) (fields []string, values []string) {
 			continue
 		}
 		fields = append(fields, field.Name)
-		fv := v.FieldByName(field.Name)
-		value := ""
-		switch fv.Interface().(type) {
-		case string:
-			value = fmt.Sprintf("'%s'", strings.ReplaceAll(fv.String(), "'", "''"))
-		case int, int64:
-			value = fmt.Sprintf("'%d'", fv.Int())
-		case float64, float32:
-			value = fmt.Sprintf("'%f'", fv.Float())
+		var arg any
+		switch value := v.Field(i).Interface().(type) {
+		case string, int, int64, float32, float64, bool:
+			arg = value
 		case []string:
-			arr := fv.Interface().([]string)
-			value = "'{"
-			for j, s := range arr {
-				if j > 0 {
-					value += ", "
-				}
-				value += "\"" + strings.ReplaceAll(s, "\"", "\\\"") + "\""
+			if value == nil {
+				value = []string{} // stored as '{}' rather than NULL, as the literal-building code did
 			}
-			value += "}'"
+			arg = pq.Array(value)
 		case *bool:
-			b := fv.Interface().(*bool)
-			if b == nil {
-				value = "NULL"
-			} else if *b {
-				value = "TRUE"
-			} else {
-				value = "FALSE"
+			if value != nil {
+				arg = *value
 			}
-		case bool:
-			b := fv.Interface().(bool)
-			if b {
-				value = "TRUE"
-			} else {
-				value = "FALSE"
-			}
-		default:
-			value = "NULL"
 		}
-		values = append(values, value)
+		args = append(args, arg)
 	}
-	return fields, values
+	return fields, args
 }
 
 type scannable interface {

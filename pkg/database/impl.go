@@ -22,6 +22,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -89,37 +90,29 @@ func (this *impl) GetTx() (tx *sql.Tx, cancel context.CancelFunc, err error) {
 }
 
 func (this *impl) InsertRule(rule *model.Rule, tx *sql.Tx) (err error) {
-	query := fmt.Sprintf("INSERT INTO \"%s\".\"%s\" (", this.ruleSchema, this.ruleTable)
-	fields, values := getFieldsAndValues(rule)
-	valueStr := "VALUES ("
-	for i := range fields {
-		if i > 0 {
-			query += ", "
-			valueStr += ", "
-		}
-		query += "\"" + fields[i] + "\""
-		valueStr += values[i]
+	fields, args := getFieldsAndArgs(rule)
+	columns := make([]string, len(fields))
+	placeholders := make([]string, len(fields))
+	for i, field := range fields {
+		columns[i] = "\"" + field + "\""
+		placeholders[i] = "$" + strconv.Itoa(i+1)
 	}
-	valueStr += ")"
-	query += ") " + valueStr + ";"
-	_, err = tx.Exec(query)
-	if err != nil {
-		return err
-	}
-	return nil
+	query := fmt.Sprintf("INSERT INTO \"%s\".\"%s\" (%s) VALUES (%s);", this.ruleSchema, this.ruleTable,
+		strings.Join(columns, ", "), strings.Join(placeholders, ", "))
+	_, err = tx.Exec(query, args...)
+	return err
 }
 
 func (this *impl) UpdateRule(rule *model.Rule, tx *sql.Tx) (err error) {
-	query := fmt.Sprintf("UPDATE \"%s\".\"%s\" SET ", this.ruleSchema, this.ruleTable)
-	fields, values := getFieldsAndValues(rule)
-	for i := range fields {
-		if i > 0 {
-			query += ", "
-		}
-		query += "\"" + fields[i] + "\" = " + values[i]
+	fields, args := getFieldsAndArgs(rule)
+	assignments := make([]string, len(fields))
+	for i, field := range fields {
+		assignments[i] = "\"" + field + "\" = $" + strconv.Itoa(i+1)
 	}
-	query += " WHERE \"Id\" = '" + rule.Id + "';"
-	res, err := tx.Exec(query)
+	args = append(args, rule.Id)
+	query := fmt.Sprintf("UPDATE \"%s\".\"%s\" SET %s WHERE \"Id\" = $%d;", this.ruleSchema, this.ruleTable,
+		strings.Join(assignments, ", "), len(args))
+	res, err := tx.Exec(query, args...)
 	if err != nil {
 		return err
 	}
@@ -176,7 +169,7 @@ func (this *impl) ListRules(limit, offset int) (rules []model.Rule, err error) {
 }
 
 func (this *impl) FindMatchingTables(ruleIds []string, tx *sql.Tx) (tables []string, err error) {
-	query := fmt.Sprintf("SELECT information_schema.tables.table_name "+
+	query := fmt.Sprintf("SELECT DISTINCT information_schema.tables.table_name "+
 		"FROM information_schema.tables, \"%s\".\"%s\" WHERE information_schema.tables.table_schema = 'public' AND information_schema.tables.table_name ~ \"%s\".\"%s\".\"TableRegEx\" AND \"%s\".\"%s\".\"Id\"IN ('"+strings.Join(ruleIds, "', '")+"');",
 		this.ruleSchema, this.ruleTable,
 		this.ruleSchema, this.ruleTable,

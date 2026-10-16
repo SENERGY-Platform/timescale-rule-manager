@@ -17,30 +17,58 @@
 package database
 
 import (
-	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
+	"database/sql/driver"
 	"reflect"
 	"testing"
+
+	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 )
 
 func TestFillInsertQuery(t *testing.T) {
-	fields, values := getFieldsAndValues(&model.Rule{
+	fields, args := getFieldsAndArgs(&model.Rule{
 		Id:              "0",
 		Description:     "test",
 		Priority:        1,
 		Group:           "2",
 		TableRegEx:      ".*",
-		Users:           []string{"sepl", "jürgen"},
+		Users:           []string{"user-a", "grün"},
 		Roles:           []string{"user", "admin"},
 		CommandTemplate: "CREATE TABLE wtf;",
 		DeleteTemplate:  "DROP TABLE wtf;",
-		Errors:          []string{},
+		Errors:          []string{`it's`, `say "hi"`, `back\slash`},
 		CompletedRun:    false,
 	})
 	if !reflect.DeepEqual(fields, []string{"Id", "Description", "Priority", "Group", "TableRegEx", "Users", "Roles", "CommandTemplate", "DeleteTemplate", "Errors", "CompletedRun"}) {
 		t.Error("fields not as expected")
 	}
-	if !reflect.DeepEqual(values, []string{"'0'", "'test'", "'1'", "'2'", "'.*'", "'{\"sepl\", \"jürgen\"}'", "'{\"user\", \"admin\"}'", "'CREATE TABLE wtf;'", "'DROP TABLE wtf;'", "'{}'", "FALSE"}) {
-		t.Error("values not as expected")
+	values := make([]any, len(args))
+	for i, arg := range args {
+		if valuer, ok := arg.(driver.Valuer); ok {
+			v, err := valuer.Value()
+			if err != nil {
+				t.Fatal(err)
+			}
+			values[i] = v
+		} else {
+			values[i] = arg
+		}
+	}
+	want := []any{"0", "test", 1, "2", ".*", `{"user-a","grün"}`, `{"user","admin"}`, "CREATE TABLE wtf;", "DROP TABLE wtf;", `{"it's","say \"hi\"","back\\slash"}`, false}
+	if !reflect.DeepEqual(values, want) {
+		t.Errorf("values not as expected\n got %#v\nwant %#v", values, want)
+	}
+}
+
+func TestFillInsertQueryNilSlices(t *testing.T) {
+	_, args := getFieldsAndArgs(&model.Rule{})
+	for _, i := range []int{5, 6, 9} {
+		v, err := args[i].(driver.Valuer).Value()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if v != "{}" {
+			t.Errorf("arg %d: got %#v, want {}", i, v)
+		}
 	}
 }
 
@@ -51,13 +79,13 @@ func BenchmarkFillInsertQuery(b *testing.B) {
 		Priority:        1,
 		Group:           "2",
 		TableRegEx:      ".*",
-		Users:           []string{"sepl", "jürgen"},
+		Users:           []string{"user-a", "grün"},
 		Roles:           []string{"user", "admin"},
 		CommandTemplate: "CREATE TABLE wtf;",
 		DeleteTemplate:  "DROP TABLE wtf;",
 		CompletedRun:    false,
 	}
 	for i := 0; i < b.N; i++ {
-		getFieldsAndValues(rule)
+		getFieldsAndArgs(rule)
 	}
 }
