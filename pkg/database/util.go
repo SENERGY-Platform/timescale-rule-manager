@@ -23,6 +23,7 @@ import (
 	"github.com/SENERGY-Platform/timescale-rule-manager/pkg/model"
 	"github.com/lib/pq"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -48,8 +49,8 @@ type queryable interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 }
 
-func (this *impl) queryStrings(query string, tx queryable) (result []string, err error) {
-	rows, err := tx.Query(query)
+func (this *impl) queryStrings(query string, tx queryable, args ...any) (result []string, err error) {
+	rows, err := tx.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +96,20 @@ func getFieldsAndArgs(rule *model.Rule) (fields []string, args []any) {
 		args = append(args, arg)
 	}
 	return fields, args
+}
+
+// textArray binds values as a text[] parameter; nil becomes an empty array so "= ANY" and "&&" match nothing
+// instead of comparing against NULL.
+func textArray(values []string) any {
+	if values == nil {
+		values = []string{}
+	}
+	return pq.Array(values)
+}
+
+// escapeLike escapes the LIKE wildcards in s, so it matches only itself.
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
 type scannable interface {

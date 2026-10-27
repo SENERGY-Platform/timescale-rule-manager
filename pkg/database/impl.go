@@ -127,7 +127,7 @@ func (this *impl) UpdateRule(rule *model.Rule, tx *sql.Tx) (err error) {
 }
 
 func (this *impl) DeleteRule(id string, tx *sql.Tx) (err error) {
-	res, err := tx.Exec(fmt.Sprintf("DELETE FROM  \"%s\".\"%s\" WHERE \"Id\" = '%s';", this.ruleSchema, this.ruleTable, id))
+	res, err := tx.Exec(fmt.Sprintf("DELETE FROM  \"%s\".\"%s\" WHERE \"Id\" = $1;", this.ruleSchema, this.ruleTable), id)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (this *impl) DeleteRule(id string, tx *sql.Tx) (err error) {
 }
 
 func (this *impl) GetRule(id string, tx *sql.Tx) (rule *model.Rule, err error) {
-	r := tx.QueryRow(fmt.Sprintf("SELECT * FROM \"%s\".\"%s\" WHERE \"Id\" = '%s'", this.ruleSchema, this.ruleTable, id))
+	r := tx.QueryRow(fmt.Sprintf("SELECT * FROM \"%s\".\"%s\" WHERE \"Id\" = $1", this.ruleSchema, this.ruleTable), id)
 	rule = &model.Rule{}
 	err = scan(r, rule)
 	if err != nil {
@@ -170,22 +170,22 @@ func (this *impl) ListRules(limit, offset int) (rules []model.Rule, err error) {
 
 func (this *impl) FindMatchingTables(ruleIds []string, tx *sql.Tx) (tables []string, err error) {
 	query := fmt.Sprintf("SELECT DISTINCT information_schema.tables.table_name "+
-		"FROM information_schema.tables, \"%s\".\"%s\" WHERE information_schema.tables.table_schema = 'public' AND information_schema.tables.table_name ~ \"%s\".\"%s\".\"TableRegEx\" AND \"%s\".\"%s\".\"Id\"IN ('"+strings.Join(ruleIds, "', '")+"');",
+		"FROM information_schema.tables, \"%s\".\"%s\" WHERE information_schema.tables.table_schema = 'public' AND information_schema.tables.table_name ~ \"%s\".\"%s\".\"TableRegEx\" AND \"%s\".\"%s\".\"Id\" = ANY($1);",
 		this.ruleSchema, this.ruleTable,
 		this.ruleSchema, this.ruleTable,
 		this.ruleSchema, this.ruleTable,
 	)
-	return this.queryStrings(query, tx)
+	return this.queryStrings(query, tx, textArray(ruleIds))
 }
 
 func (this *impl) FindMatchingRules(tables []string, tx *sql.Tx) (rules []model.Rule, err error) {
 	query := fmt.Sprintf("SELECT \"%s\".\"%s\".* "+
-		"FROM information_schema.tables, \"%s\".\"%s\" WHERE information_schema.tables.table_schema = 'public' AND information_schema.tables.table_name ~ \"%s\".\"%s\".\"TableRegEx\" AND information_schema.tables.table_name IN ('"+strings.Join(tables, "', '")+"');",
+		"FROM information_schema.tables, \"%s\".\"%s\" WHERE information_schema.tables.table_schema = 'public' AND information_schema.tables.table_name ~ \"%s\".\"%s\".\"TableRegEx\" AND information_schema.tables.table_name = ANY($1);",
 		this.ruleSchema, this.ruleTable,
 		this.ruleSchema, this.ruleTable,
 		this.ruleSchema, this.ruleTable,
 	)
-	rows, err := tx.Query(query)
+	rows, err := tx.Query(query, textArray(tables))
 	if err != nil {
 		return nil, err
 	}
@@ -206,39 +206,39 @@ func (this *impl) FindDeviceTables(deviceId string) (tables []string, err error)
 	if err != nil {
 		return nil, err
 	}
-	query := "SELECT table_name FROM information_schema.tables WHERE table_name like 'device:" + shortDeviceId + "%';"
-	return this.queryStrings(query, this.sql)
+	return this.queryStrings("SELECT table_name FROM information_schema.tables WHERE table_name LIKE $1;", this.sql,
+		"device:"+escapeLike(shortDeviceId)+"%")
 }
 
 func (this *impl) GetColumns(table string) (columns []string, err error) {
-	query := fmt.Sprintf("SELECT column_name FROM information_schema.columns where table_name = '%s' AND table_schema = 'public';", table)
-	return this.queryStrings(query, this.sql)
+	return this.queryStrings("SELECT column_name FROM information_schema.columns where table_name = $1 AND table_schema = 'public';", this.sql, table)
 }
 
 func (this *impl) FindMatchingRulesWithOwnerInfo(table string, userIds []string, roles []string, limitToRuleIds []string, tx *sql.Tx) (rules []model.Rule, err error) {
 	query := fmt.Sprintf("SELECT DISTINCT ON (\"%s\".\"%s\".\"Group\") \"%s\".\"%s\".* "+ // only one rule per Group
 		"FROM information_schema.tables, \"%s\".\"%s\" WHERE information_schema.tables.table_schema = 'public' "+ // table is in schema public
 		"AND information_schema.tables.table_name ~ \"%s\".\"%s\".\"TableRegEx\" "+ // table matches rule regex
-		"AND information_schema.tables.table_name = '%s' "+ // table name matches
+		"AND information_schema.tables.table_name = $1 "+ // table name matches
 		"AND ("+ // roles or user matches
-		"	\"%s\".\"%s\".\"Roles\" && ARRAY['"+strings.Join(roles, "', '")+"'] "+ // any roles overlap
-		"	OR \"%s\".\"%s\".\"Users\" && ARRAY['"+strings.Join(userIds, "', '")+"']"+ // any userIds overlap
+		"	\"%s\".\"%s\".\"Roles\" && $2 "+ // any roles overlap
+		"	OR \"%s\".\"%s\".\"Users\" && $3"+ // any userIds overlap
 		")", // ensures DISTINCT ON selects rule with the highest Priority per Group
 		this.ruleSchema, this.ruleTable,
 		this.ruleSchema, this.ruleTable,
 		this.ruleSchema, this.ruleTable,
 		this.ruleSchema, this.ruleTable,
-		table,
 		this.ruleSchema, this.ruleTable,
 		this.ruleSchema, this.ruleTable,
 	)
+	args := []any{table, textArray(roles), textArray(userIds)}
 	if limitToRuleIds != nil {
-		query += fmt.Sprintf(" AND \"%s\".\"%s\".\"Id\" IN ('"+strings.Join(limitToRuleIds, "', '")+"')",
+		query += fmt.Sprintf(" AND \"%s\".\"%s\".\"Id\" = ANY($4)",
 			this.ruleSchema, this.ruleTable,
 		)
+		args = append(args, textArray(limitToRuleIds))
 	}
 	query += " ORDER BY \"Group\", \"Priority\" DESC;"
-	rows, err := tx.Query(query)
+	rows, err := tx.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

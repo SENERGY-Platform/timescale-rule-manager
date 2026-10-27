@@ -151,4 +151,72 @@ func TestRuleQueries(t *testing.T) {
 			t.Fatalf("got %#v", tables)
 		}
 	})
+
+	// An id that closes a quoted literal or an IN list and appends a condition that is always true.
+	injections := []string{`missing' OR 'a'='a`, `none') OR ('a'='a`}
+
+	t.Run("quoted values reach GetRule, GetColumns and FindMatchingRulesWithOwnerInfo as data", func(t *testing.T) {
+		rule := &model.Rule{Id: `it's`, TableRegEx: `^quo'te_table$`, Users: []string{`user'b`}, Roles: []string{}}
+		err := inTx(t, db, func(tx *sql.Tx) error {
+			if _, err := tx.Exec(`CREATE TABLE public."quo'te_table" (v integer);`); err != nil {
+				return err
+			}
+			return db.InsertRule(rule, tx)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := getRule(t, db, rule.Id); got.Id != rule.Id {
+			t.Fatalf("GetRule: got %q", got.Id)
+		}
+		columns, err := db.GetColumns(`quo'te_table`)
+		if err != nil || !reflect.DeepEqual(columns, []string{"v"}) {
+			t.Fatalf("GetColumns: got %#v, %v", columns, err)
+		}
+		var rules []model.Rule
+		err = inTx(t, db, func(tx *sql.Tx) (err error) {
+			rules, err = db.FindMatchingRulesWithOwnerInfo(`quo'te_table`, []string{`user'b`}, []string{`role'x`}, []string{rule.Id}, tx)
+			return err
+		})
+		if err != nil || len(rules) != 1 || rules[0].Id != rule.Id {
+			t.Fatalf("FindMatchingRulesWithOwnerInfo: got %#v, %v", rules, err)
+		}
+	})
+
+	t.Run("injected ids and table names match nothing", func(t *testing.T) {
+		for _, injection := range injections {
+			err := inTx(t, db, func(tx *sql.Tx) error {
+				if _, err := db.GetRule(injection, tx); !errors.Is(err, ErrNotFound) {
+					t.Errorf("GetRule(%q): got %v, want ErrNotFound", injection, err)
+				}
+				if tables, err := db.FindMatchingTables([]string{injection}, tx); err != nil || len(tables) != 0 {
+					t.Errorf("FindMatchingTables(%q): got %#v, %v", injection, tables, err)
+				}
+				if rules, err := db.FindMatchingRules([]string{injection}, tx); err != nil || len(rules) != 0 {
+					t.Errorf("FindMatchingRules(%q): got %#v, %v", injection, rules, err)
+				}
+				rules, err := db.FindMatchingRulesWithOwnerInfo("match_once_table", []string{injection}, []string{injection}, []string{injection}, tx)
+				if err != nil || len(rules) != 0 {
+					t.Errorf("FindMatchingRulesWithOwnerInfo(%q): got %#v, %v", injection, rules, err)
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
+	t.Run("DeleteRule with an injected id deletes nothing", func(t *testing.T) {
+		for _, injection := range injections {
+			err := inTx(t, db, func(tx *sql.Tx) error { return db.DeleteRule(injection, tx) })
+			if !errors.Is(err, ErrNotFound) {
+				t.Errorf("DeleteRule(%q): got %v, want ErrNotFound", injection, err)
+			}
+		}
+		rules, err := db.ListRules(100, 0)
+		if err != nil || len(rules) == 0 {
+			t.Fatalf("rules after DeleteRule: got %d, %v", len(rules), err)
+		}
+	})
 }
