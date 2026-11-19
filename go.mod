@@ -25,7 +25,7 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudwego/base64x v0.1.7 // indirect
 	github.com/containerd/containerd/api v1.11.1 // indirect
-	github.com/containerd/containerd/v2 v2.2.5 // indirect
+	github.com/containerd/containerd/v2 v2.2.9 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/docker/compose/v5 v5.2.0 // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
